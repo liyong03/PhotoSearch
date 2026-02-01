@@ -5,8 +5,20 @@ from pydantic import BaseModel
 
 from photosearch import __version__
 from photosearch.config import settings
+from photosearch.database import Database
 
 router = APIRouter()
+
+# Initialize database
+_db: Database | None = None
+
+
+def get_db() -> Database:
+    """Get or create database instance."""
+    global _db
+    if _db is None:
+        _db = Database(settings.db_path)
+    return _db
 
 
 class StatusResponse(BaseModel):
@@ -38,8 +50,9 @@ async def get_status() -> StatusResponse:
     if settings.faiss_index_path and settings.faiss_index_path.exists():
         index_size_mb = settings.faiss_index_path.stat().st_size / (1024 * 1024)
 
-    # TODO: Get actual indexed count from database once implemented
-    indexed_count = 0
+    # Get actual indexed count from database
+    db = get_db()
+    indexed_count = db.count_photos()
 
     return StatusResponse(
         status="ok",
