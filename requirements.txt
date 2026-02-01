@@ -1,0 +1,38 @@
+# PhotoSearch - Python Backend Requirements (Hybrid Architecture)
+# This is for the Python backend that provides ML inference and FAISS vector search
+# The Swift/SwiftUI frontend communicates with this backend via REST API
+
+# Core ML/AI Libraries
+torch>=2.0.0
+transformers>=4.30.0
+pillow>=10.0.0
+
+# Vector Search - FAISS
+faiss-cpu>=1.7.4  # Use faiss-gpu for NVIDIA GPU acceleration
+
+# Image Captioning (BLIP model - included in transformers)
+# CLIP model - included in transformers
+
+# EXIF Data Extraction
+exifread>=3.0.0
+
+# Location Services (reverse geocoding)
+geopy>=2.3.0
+
+# Database (SQLite is built-in to Python)
+
+# Web Framework - FastAPI for local REST API
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# Utilities
+python-dateutil>=2.8.2
+tqdm>=4.65.0  # Progress bars for indexing
+pydantic>=2.0.0  # Request/response validation
+
+# Development
+pytest>=7.4.0
+black>=23.0.0
+
+# Optional: Core ML model conversion (for Pure Swift option)
+# coremltools>=7.0  # Uncomment to convert PyTorch models to Core ML
