@@ -1,6 +1,7 @@
 import Foundation
 
 /// Client for communicating with the PhotoSearch backend API.
+/// Thread-safe actor that handles all HTTP communication with the backend.
 actor APIClient {
     /// Shared singleton instance.
     static let shared = APIClient()
@@ -17,13 +18,47 @@ actor APIClient {
     /// JSON encoder configured for the API.
     private let encoder: JSONEncoder
 
-    init(baseURL: String = "http://localhost:8765/api/v1") {
+    /// Request timeout interval.
+    private let timeoutInterval: TimeInterval
+
+    // MARK: - Initialization
+
+    init(baseURL: String = "http://localhost:8765/api/v1", timeoutInterval: TimeInterval = 30) {
         self.baseURL = URL(string: baseURL)!
-        self.session = URLSession.shared
+        self.timeoutInterval = timeoutInterval
 
+        // Configure URL session
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = timeoutInterval
+        config.timeoutIntervalForResource = timeoutInterval * 2
+        self.session = URLSession(configuration: config)
+
+        // Configure JSON decoder
         self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
+        self.decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
 
+            // Try ISO8601 with fractional seconds
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+
+            // Try ISO8601 without fractional seconds
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Cannot decode date: \(dateString)"
+            )
+        }
+
+        // Configure JSON encoder
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
     }
@@ -31,223 +66,178 @@ actor APIClient {
     // MARK: - Status
 
     /// Get backend status.
+    /// - Returns: Backend status information.
+    /// - Throws: `APIError` if the request fails.
     func getStatus() async throws -> BackendStatus {
-        let url = baseURL.appendingPathComponent("status")
-        let (data, _) = try await session.data(from: url)
-        return try decoder.decode(BackendStatus.self, from: data)
+        try await get("status")
+    }
+
+    /// Check if the backend is available and ready.
+    /// - Returns: `true` if backend is ready, `false` otherwise.
+    func isBackendReady() async -> Bool {
+        do {
+            let status = try await getStatus()
+            return status.isReady
+        } catch {
+            return false
+        }
     }
 
     // MARK: - Search
 
     /// Search for photos.
+    /// - Parameter request: Search request with query and filters.
+    /// - Returns: Search response with results.
+    /// - Throws: `APIError` if the request fails.
     func search(_ request: SearchRequest) async throws -> SearchResponse {
-        let url = baseURL.appendingPathComponent("search")
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.httpBody = try encoder.encode(request)
+        try await post("search", body: request)
+    }
 
-        let (data, _) = try await session.data(for: urlRequest)
-        return try decoder.decode(SearchResponse.self, from: data)
+    /// Search for photos with a simple query.
+    /// - Parameters:
+    ///   - query: Search query string.
+    ///   - topK: Maximum number of results to return.
+    ///   - location: Optional location filter.
+    /// - Returns: Search response with results.
+    /// - Throws: `APIError` if the request fails.
+    func search(query: String, topK: Int = 20, location: String? = nil) async throws -> SearchResponse {
+        let request = SearchRequest(query: query, topK: topK, location: location)
+        return try await search(request)
     }
 
     // MARK: - Indexing
 
     /// Index a single photo.
+    /// - Parameter path: Path to the photo file.
+    /// - Returns: Index result with photo information.
+    /// - Throws: `APIError` if the request fails.
     func indexPhoto(path: String) async throws -> IndexResult {
-        let url = baseURL.appendingPathComponent("index")
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.httpBody = try encoder.encode(["photo_path": path])
-
-        let (data, _) = try await session.data(for: urlRequest)
-        return try decoder.decode(IndexResult.self, from: data)
+        let request = IndexPhotoRequest(photoPath: path)
+        return try await post("index", body: request)
     }
 
     /// Index a folder of photos.
+    /// - Parameters:
+    ///   - path: Path to the folder.
+    ///   - recursive: Whether to scan subdirectories.
+    /// - Returns: Index task with task ID.
+    /// - Throws: `APIError` if the request fails.
     func indexFolder(path: String, recursive: Bool = true) async throws -> IndexTask {
-        let url = baseURL.appendingPathComponent("index/batch")
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let request = IndexFolderRequest(folderPath: path, recursive: recursive)
-        urlRequest.httpBody = try encoder.encode(request)
-
-        let (data, _) = try await session.data(for: urlRequest)
-        return try decoder.decode(IndexTask.self, from: data)
+        return try await post("index/batch", body: request)
     }
 
-    /// Get indexing progress.
+    /// Get indexing progress for a task.
+    /// - Parameter taskId: Task ID from `indexFolder`.
+    /// - Returns: Index progress information.
+    /// - Throws: `APIError` if the request fails.
     func getIndexStatus(taskId: String) async throws -> IndexProgress {
-        let url = baseURL.appendingPathComponent("index/status/\(taskId)")
-        let (data, _) = try await session.data(from: url)
-        return try decoder.decode(IndexProgress.self, from: data)
+        try await get("index/status/\(taskId)")
+    }
+
+    /// Delete a photo from the index.
+    /// - Parameter photoId: ID of the photo to remove.
+    /// - Throws: `APIError` if the request fails.
+    func deletePhoto(photoId: String) async throws {
+        let _: EmptyResponse = try await delete("index/\(photoId)")
     }
 
     // MARK: - Geocoding
 
-    /// Geocode a place name to bounding box.
+    /// Geocode a place name to get its bounding box.
+    /// - Parameter placeName: Name of the place to geocode.
+    /// - Returns: Geocode response with coordinates.
+    /// - Throws: `APIError` if the request fails.
     func geocode(placeName: String) async throws -> GeocodeResponse {
-        let url = baseURL.appendingPathComponent("geocode")
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.httpBody = try encoder.encode(["place_name": placeName])
-
-        let (data, _) = try await session.data(for: urlRequest)
-        return try decoder.decode(GeocodeResponse.self, from: data)
-    }
-}
-
-// MARK: - API Models
-
-/// Backend status response.
-struct BackendStatus: Codable {
-    let status: String
-    let indexedCount: Int?
-    let vectorIndexSize: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case status
-        case indexedCount = "indexed_count"
-        case vectorIndexSize = "vector_index_size"
-    }
-}
-
-/// Request to index a folder.
-struct IndexFolderRequest: Codable {
-    let folderPath: String
-    let recursive: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case folderPath = "folder_path"
-        case recursive
-    }
-}
-
-/// Search request.
-struct SearchRequest: Codable {
-    let query: String
-    let topK: Int
-    let timeRange: TimeRange?
-    let location: String?
-
-    init(query: String, topK: Int = 20, timeRange: TimeRange? = nil, location: String? = nil) {
-        self.query = query
-        self.topK = topK
-        self.timeRange = timeRange
-        self.location = location
+        let request = GeocodeRequest(placeName: placeName)
+        return try await post("geocode", body: request)
     }
 
-    enum CodingKeys: String, CodingKey {
-        case query
-        case topK = "top_k"
-        case timeRange = "time_range"
-        case location
+    // MARK: - Private HTTP Methods
+
+    /// Perform a GET request.
+    private func get<T: Decodable>(_ path: String) async throws -> T {
+        let url = baseURL.appendingPathComponent(path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeoutInterval
+        return try await perform(request)
     }
-}
 
-/// Time range for filtering.
-struct TimeRange: Codable {
-    let start: Date
-    let end: Date
-}
-
-/// Result of indexing a single photo.
-struct IndexResult: Codable {
-    let id: String
-    let path: String
-    let description: String?
-    let tags: [String]
-    let location: LocationInfo?
-    let timestamp: Date?
-}
-
-/// Location information.
-struct LocationInfo: Codable {
-    let city: String?
-    let state: String?
-    let country: String?
-    let placeName: String?
-
-    enum CodingKeys: String, CodingKey {
-        case city
-        case state
-        case country
-        case placeName = "place_name"
+    /// Perform a POST request with a JSON body.
+    private func post<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        let url = baseURL.appendingPathComponent(path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = timeoutInterval
+        request.httpBody = try encoder.encode(body)
+        return try await perform(request)
     }
-}
 
-/// Task for batch indexing.
-struct IndexTask: Codable {
-    let taskId: String
-    let status: String
-    let totalFiles: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case taskId = "task_id"
-        case status
-        case totalFiles = "total_files"
+    /// Perform a DELETE request.
+    private func delete<T: Decodable>(_ path: String) async throws -> T {
+        let url = baseURL.appendingPathComponent(path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = timeoutInterval
+        return try await perform(request)
     }
-}
 
-/// Progress of an indexing task.
-struct IndexProgress: Codable {
-    let taskId: String
-    let status: String
-    let progress: Double
-    let processed: Int
-    let total: Int
-    let errors: [String]
+    /// Perform an HTTP request and decode the response.
+    private func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
+        let data: Data
+        let response: URLResponse
 
-    enum CodingKeys: String, CodingKey {
-        case taskId = "task_id"
-        case status
-        case progress
-        case processed
-        case total
-        case errors
-    }
-}
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError {
+            if error.code == .cannotConnectToHost || error.code == .networkConnectionLost {
+                throw APIError.backendNotAvailable
+            }
+            throw APIError.networkError(error.localizedDescription)
+        } catch {
+            throw APIError.networkError(error.localizedDescription)
+        }
 
-/// Geocode response.
-struct GeocodeResponse: Codable {
-    let name: String
-    let boundingBox: BoundingBox?
-    let center: Coordinate?
+        // Check HTTP status code
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.networkError("Invalid response type")
+        }
 
-    enum CodingKeys: String, CodingKey {
-        case name
-        case boundingBox = "bounding_box"
-        case center
-    }
-}
+        // Handle error status codes
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorMessage = parseErrorMessage(from: data)
+            throw APIError.serverError(httpResponse.statusCode, errorMessage)
+        }
 
-/// Geographic coordinate.
-struct Coordinate: Codable {
-    let lat: Double
-    let lon: Double
-}
+        // Handle empty response
+        if data.isEmpty {
+            if let empty = EmptyResponse() as? T {
+                return empty
+            }
+        }
 
-// MARK: - API Error
-
-enum APIError: LocalizedError {
-    case invalidURL
-    case networkError(Error)
-    case decodingError(Error)
-    case serverError(Int, String?)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "Invalid URL"
-        case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
-        case .decodingError(let error):
-            return "Failed to decode response: \(error.localizedDescription)"
-        case .serverError(let code, let message):
-            return "Server error \(code): \(message ?? "Unknown error")"
+        // Decode response
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw APIError.decodingError(error.localizedDescription)
         }
     }
+
+    /// Parse error message from server response.
+    private func parseErrorMessage(from data: Data) -> String? {
+        if let errorResponse = try? decoder.decode(ServerErrorResponse.self, from: data) {
+            return errorResponse.errorMessage
+        }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
+// MARK: - Empty Response
+
+/// Placeholder for responses with no body.
+struct EmptyResponse: Codable {
+    init() {}
 }

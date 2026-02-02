@@ -57,7 +57,7 @@ struct SearchResult: Identifiable, Codable, Equatable {
 }
 
 /// Response from a search query.
-struct SearchResponse: Codable {
+struct SearchResponse: Codable, Equatable {
     let results: [SearchResult]
     let totalResults: Int
     let locationResolved: LocationResolved?
@@ -70,7 +70,7 @@ struct SearchResponse: Codable {
 }
 
 /// Resolved location information from a search query.
-struct LocationResolved: Codable {
+struct LocationResolved: Codable, Equatable {
     let query: String?
     let boundingBox: BoundingBox?
 
@@ -81,7 +81,7 @@ struct LocationResolved: Codable {
 }
 
 /// Geographic bounding box.
-struct BoundingBox: Codable {
+struct BoundingBox: Codable, Equatable {
     let minLat: Double
     let maxLat: Double
     let minLon: Double
@@ -92,5 +92,11 @@ struct BoundingBox: Codable {
         case maxLat = "max_lat"
         case minLon = "min_lon"
         case maxLon = "max_lon"
+    }
+
+    /// Check if a coordinate is within the bounding box.
+    func contains(latitude: Double, longitude: Double) -> Bool {
+        latitude >= minLat && latitude <= maxLat &&
+        longitude >= minLon && longitude <= maxLon
     }
 }
