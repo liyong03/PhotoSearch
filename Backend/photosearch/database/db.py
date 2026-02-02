@@ -464,3 +464,11 @@ class Database:
             return {row["faiss_index"]: row["photo_id"] for row in cursor.fetchall()}
         finally:
             conn.close()
+
+    def close(self) -> None:
+        """Close the database connection.
+
+        Note: This class uses per-operation connections, so this method
+        is a no-op but provided for API consistency.
+        """
+        pass
