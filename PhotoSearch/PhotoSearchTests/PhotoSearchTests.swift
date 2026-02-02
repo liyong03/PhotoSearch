@@ -417,4 +417,67 @@ final class PhotoSearchTests: XCTestCase {
         XCTAssertEqual(photo.tags, ["sunset"])
         XCTAssertNotNil(photo.timestamp)
     }
+
+    // MARK: - ThumbnailCache Tests
+
+    @MainActor
+    func testThumbnailCacheSharedInstance() {
+        let cache1 = ThumbnailCache.shared
+        let cache2 = ThumbnailCache.shared
+        XCTAssertTrue(cache1 === cache2, "ThumbnailCache should be a singleton")
+    }
+
+    @MainActor
+    func testThumbnailCacheClearCache() {
+        let cache = ThumbnailCache.shared
+        cache.clearCache()
+        // Should not crash
+        XCTAssertTrue(true)
+    }
+
+    @MainActor
+    func testThumbnailLoaderInitialization() {
+        let loader = ThumbnailLoader()
+        XCTAssertNil(loader.image)
+        XCTAssertFalse(loader.isLoading)
+    }
+
+    // MARK: - SearchFilter Tests
+
+    func testSearchFilterEquality() {
+        let filter1 = SearchFilter(type: .location, value: "Hawaii")
+        let filter2 = SearchFilter(type: .location, value: "Hawaii")
+
+        // Each filter has unique ID, so they should not be equal
+        XCTAssertNotEqual(filter1, filter2)
+        XCTAssertEqual(filter1, filter1)
+    }
+
+    func testSearchFilterTypeProperties() {
+        XCTAssertEqual(SearchFilter.FilterType.location.icon, "location.fill")
+        XCTAssertEqual(SearchFilter.FilterType.dateRange.icon, "calendar")
+        XCTAssertEqual(SearchFilter.FilterType.tag.icon, "tag.fill")
+
+        XCTAssertEqual(SearchFilter.FilterType.location.rawValue, "Location")
+        XCTAssertEqual(SearchFilter.FilterType.dateRange.rawValue, "Date")
+        XCTAssertEqual(SearchFilter.FilterType.tag.rawValue, "Tag")
+    }
+
+    // MARK: - SearchResult Array Tests
+
+    func testSearchResultArrayOperations() {
+        let results = [
+            SearchResult(id: "1", path: "/a.jpg", score: 0.9, description: nil, timestamp: nil, city: nil, state: nil, country: nil),
+            SearchResult(id: "2", path: "/b.jpg", score: 0.8, description: nil, timestamp: nil, city: nil, state: nil, country: nil),
+            SearchResult(id: "3", path: "/c.jpg", score: 0.7, description: nil, timestamp: nil, city: nil, state: nil, country: nil)
+        ]
+
+        XCTAssertEqual(results.count, 3)
+        XCTAssertEqual(results.first?.id, "1")
+        XCTAssertEqual(results.last?.id, "3")
+
+        // Find by ID
+        let found = results.first { $0.id == "2" }
+        XCTAssertEqual(found?.path, "/b.jpg")
+    }
 }
