@@ -445,7 +445,7 @@ class TestIntegrationWithCLIP:
     def clip_processor(self):
         """Create CLIP processor for integration tests."""
         from photosearch.core.clip_processor import CLIPProcessor
-        return CLIPProcessor(device="cpu")
+        return CLIPProcessor(device="cpu", local_files_only=True)
 
     @pytest.fixture(scope="class")
     def image_embeddings(self, clip_processor):

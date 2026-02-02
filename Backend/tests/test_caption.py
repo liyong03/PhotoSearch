@@ -20,7 +20,7 @@ class TestModelLoading:
 
     def test_model_loading(self):
         """Test that BLIP model loads successfully."""
-        generator = CaptionGenerator(device="cpu")
+        generator = CaptionGenerator(device="cpu", local_files_only=True)
 
         assert generator is not None
         assert generator.model is not None
@@ -28,7 +28,7 @@ class TestModelLoading:
 
     def test_model_loading_with_device(self):
         """Test model loading with explicit device."""
-        generator = CaptionGenerator(device="cpu")
+        generator = CaptionGenerator(device="cpu", local_files_only=True)
 
         assert generator.device == "cpu"
 
@@ -39,7 +39,7 @@ class TestGenerateCaption:
     @pytest.fixture(scope="class")
     def generator(self):
         """Create caption generator for tests."""
-        return CaptionGenerator(device="cpu")
+        return CaptionGenerator(device="cpu", local_files_only=True)
 
     def test_generate_caption(self, generator):
         """Test generating a caption for an image."""
@@ -89,7 +89,7 @@ class TestCaptionQuality:
     @pytest.fixture(scope="class")
     def generator(self):
         """Create caption generator for tests."""
-        return CaptionGenerator(device="cpu")
+        return CaptionGenerator(device="cpu", local_files_only=True)
 
     def test_sunset_image_caption(self, generator):
         """Test that sunset image caption contains relevant words."""
@@ -201,7 +201,7 @@ class TestExtractTags:
     @pytest.fixture(scope="class")
     def generator(self):
         """Create caption generator for tests."""
-        return CaptionGenerator(device="cpu")
+        return CaptionGenerator(device="cpu", local_files_only=True)
 
     def test_extract_tags(self, generator):
         """Test extracting tags from a caption."""
@@ -260,7 +260,7 @@ class TestImageTypes:
     @pytest.fixture(scope="class")
     def generator(self):
         """Create caption generator for tests."""
-        return CaptionGenerator(device="cpu")
+        return CaptionGenerator(device="cpu", local_files_only=True)
 
     def test_jpeg_image(self, generator):
         """Test caption generation for JPEG image."""
@@ -314,7 +314,7 @@ class TestBatchGeneration:
     @pytest.fixture(scope="class")
     def generator(self):
         """Create caption generator for tests."""
-        return CaptionGenerator(device="cpu")
+        return CaptionGenerator(device="cpu", local_files_only=True)
 
     def test_generate_captions_batch(self, generator):
         """Test generating captions for multiple images."""
@@ -362,7 +362,7 @@ class TestCaptionWithTags:
     @pytest.fixture(scope="class")
     def generator(self):
         """Create caption generator for tests."""
-        return CaptionGenerator(device="cpu")
+        return CaptionGenerator(device="cpu", local_files_only=True)
 
     def test_generate_caption_with_tags(self, generator):
         """Test generating caption and tags together."""

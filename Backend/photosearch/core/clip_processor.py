@@ -21,6 +21,7 @@ class CLIPProcessor:
         self,
         model_name: str = "openai/clip-vit-base-patch32",
         device: Optional[str] = None,
+        local_files_only: bool = False,
     ):
         """Initialize CLIP processor.
 
@@ -28,6 +29,7 @@ class CLIPProcessor:
             model_name: HuggingFace model name for CLIP.
             device: Device to run model on ("cpu", "cuda", "mps").
                    If None, automatically selects best available device.
+            local_files_only: If True, only use cached models (no network).
         """
         self.model_name = model_name
         self.device = self._select_device(device)
@@ -35,8 +37,8 @@ class CLIPProcessor:
         logger.info(f"Loading CLIP model: {model_name}")
         logger.info(f"Using device: {self.device}")
 
-        self.model = CLIPModel.from_pretrained(model_name)
-        self.processor = HFCLIPProcessor.from_pretrained(model_name)
+        self.model = CLIPModel.from_pretrained(model_name, local_files_only=local_files_only)
+        self.processor = HFCLIPProcessor.from_pretrained(model_name, local_files_only=local_files_only)
 
         # Move model to device
         self.model = self.model.to(self.device)

@@ -38,6 +38,7 @@ class CaptionGenerator:
         self,
         model_name: str = "Salesforce/blip-image-captioning-base",
         device: Optional[str] = None,
+        local_files_only: bool = False,
     ):
         """Initialize caption generator.
 
@@ -45,6 +46,7 @@ class CaptionGenerator:
             model_name: HuggingFace model name for BLIP.
             device: Device to run model on ("cpu", "cuda", "mps").
                    If None, automatically selects best available device.
+            local_files_only: If True, only use cached models (no network).
         """
         self.model_name = model_name
         self.device = self._select_device(device)
@@ -52,8 +54,8 @@ class CaptionGenerator:
         logger.info(f"Loading BLIP model: {model_name}")
         logger.info(f"Using device: {self.device}")
 
-        self.processor = BlipProcessor.from_pretrained(model_name)
-        self.model = BlipForConditionalGeneration.from_pretrained(model_name)
+        self.processor = BlipProcessor.from_pretrained(model_name, local_files_only=local_files_only)
+        self.model = BlipForConditionalGeneration.from_pretrained(model_name, local_files_only=local_files_only)
 
         # Move model to device
         self.model = self.model.to(self.device)

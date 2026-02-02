@@ -15,7 +15,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 @pytest.fixture(scope="module")
 def clip_processor():
     """Create CLIP processor (shared across tests for efficiency)."""
-    return CLIPProcessor(device="cpu")  # Use CPU for consistent testing
+    return CLIPProcessor(device="cpu", local_files_only=True)  # Use CPU for consistent testing
 
 
 @pytest.fixture

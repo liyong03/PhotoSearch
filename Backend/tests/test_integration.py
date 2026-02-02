@@ -19,7 +19,7 @@ class TestCLIPFAISSIntegration:
     @pytest.fixture(scope="class")
     def clip_processor(self):
         """Create CLIP processor for integration tests."""
-        return CLIPProcessor(device="cpu")
+        return CLIPProcessor(device="cpu", local_files_only=True)
 
     @pytest.fixture(scope="class")
     def test_images(self):

@@ -211,7 +211,6 @@ class TestRealIndexingPerformance:
         """Get the test fixtures directory."""
         return Path(__file__).parent / "fixtures"
 
-    @pytest.mark.skip(reason="Requires ML models - run manually")
     def test_clip_embedding_speed(self, test_images_dir):
         """Test CLIP embedding generation speed per image (CLIP only, no BLIP).
         
@@ -241,7 +240,7 @@ class TestRealIndexingPerformance:
         # Initialize CLIP model
         print("Initializing CLIP model...")
         init_start = time.perf_counter()
-        clip = CLIPProcessor(device="cpu")
+        clip = CLIPProcessor(device="cpu", local_files_only=True)
         clip_init_time = time.perf_counter() - init_start
         print(f"  CLIP model init: {clip_init_time:.2f}s")
         
@@ -307,7 +306,6 @@ class TestRealIndexingPerformance:
         assert avg_load < 200, f"Image loading too slow: {avg_load:.1f}ms"
         assert avg_clip < 2000, f"CLIP embedding too slow: {avg_clip:.1f}ms"
 
-    @pytest.mark.skip(reason="Requires ML models - run manually")
     def test_embedding_generation_speed(self, test_images_dir):
         """Test full embedding generation speed (CLIP + BLIP) per image.
         
@@ -340,11 +338,11 @@ class TestRealIndexingPerformance:
         # Initialize models (not counted in timing)
         print("\n\nInitializing ML models...")
         init_start = time.perf_counter()
-        clip = CLIPProcessor(device="cpu")
+        clip = CLIPProcessor(device="cpu", local_files_only=True)
         clip_init_time = time.perf_counter() - init_start
         
         init_start = time.perf_counter()
-        caption_gen = CaptionGenerator(device="cpu")
+        caption_gen = CaptionGenerator(device="cpu", local_files_only=True)
         blip_init_time = time.perf_counter() - init_start
         
         print(f"  CLIP model init: {clip_init_time:.2f}s")
@@ -429,7 +427,6 @@ class TestRealIndexingPerformance:
         assert avg_blip < 5000, f"BLIP caption too slow: {avg_blip:.1f}ms (target: < 5000ms on CPU)"
         assert avg_text_ms < 500, f"Text embedding too slow: {avg_text_ms:.1f}ms (target: < 500ms)"
 
-    @pytest.mark.skip(reason="Requires ML models - run manually")
     def test_single_photo_indexing_speed(self, test_images_dir):
         """Test indexing speed for a single photo.
         
@@ -446,8 +443,8 @@ class TestRealIndexingPerformance:
             pytest.skip("Test image not found")
         
         # Initialize models (not counted in timing)
-        clip = CLIPProcessor(device="cpu")
-        caption_gen = CaptionGenerator(device="cpu")
+        clip = CLIPProcessor(device="cpu", local_files_only=True)
+        caption_gen = CaptionGenerator(device="cpu", local_files_only=True)
         
         # Time the full indexing pipeline
         times = []
@@ -474,7 +471,6 @@ class TestRealIndexingPerformance:
         
         assert avg_time < 3.0, f"Single photo indexing too slow: {avg_time:.2f}s"
 
-    @pytest.mark.skip(reason="Requires ML models - run manually")
     def test_batch_indexing_speed(self, test_images_dir):
         """Test batch indexing speed.
         
@@ -494,6 +490,7 @@ class TestRealIndexingPerformance:
                 db_path=tmpdir / "test.db",
                 index_path=tmpdir / "test.index",
                 device="cpu",
+                local_files_only=True,
             )
             
             start = time.perf_counter()

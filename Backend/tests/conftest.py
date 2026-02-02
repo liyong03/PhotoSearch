@@ -9,6 +9,11 @@ import pytest
 # Set test environment before importing app modules
 os.environ["PHOTOSEARCH_DEBUG"] = "true"
 
+# Force HuggingFace to use only cached models (no network downloads)
+# This prevents flaky tests due to network timeouts
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 
 @pytest.fixture(scope="session")
 def test_data_dir():

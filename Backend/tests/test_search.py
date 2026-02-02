@@ -146,7 +146,7 @@ class TestSearchEngineIndexing:
     def search_engine(self, temp_dirs):
         """Create search engine for tests."""
         db_path, index_path = temp_dirs
-        engine = SearchEngine(db_path, index_path, device="cpu")
+        engine = SearchEngine(db_path, index_path, device="cpu", local_files_only=True)
         yield engine
         engine.close()
 
@@ -245,7 +245,7 @@ class TestSearchEngineSearch:
             db_path = Path(tmpdir) / "test.db"
             index_path = Path(tmpdir) / "test.index"
 
-            engine = SearchEngine(db_path, index_path, device="cpu")
+            engine = SearchEngine(db_path, index_path, device="cpu", local_files_only=True)
 
             # Index test images
             test_images = [
@@ -339,7 +339,7 @@ class TestSearchEngineFilters:
             db_path = Path(tmpdir) / "test.db"
             index_path = Path(tmpdir) / "test.index"
 
-            engine = SearchEngine(db_path, index_path, device="cpu")
+            engine = SearchEngine(db_path, index_path, device="cpu", local_files_only=True)
 
             # Index photos with GPS
             gps_images = [
@@ -419,7 +419,7 @@ class TestSearchEngineRemove:
             db_path = Path(tmpdir) / "test.db"
             index_path = Path(tmpdir) / "test.index"
 
-            engine = SearchEngine(db_path, index_path, device="cpu")
+            engine = SearchEngine(db_path, index_path, device="cpu", local_files_only=True)
             yield engine
             engine.close()
 

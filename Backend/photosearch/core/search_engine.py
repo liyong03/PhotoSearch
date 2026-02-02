@@ -126,6 +126,7 @@ class SearchEngine:
         db_path: Path | str,
         index_path: Path | str,
         device: Optional[str] = None,
+        local_files_only: bool = False,
     ):
         """Initialize search engine.
 
@@ -133,6 +134,7 @@ class SearchEngine:
             db_path: Path to SQLite database.
             index_path: Path to FAISS index file.
             device: Device for ML models ("cpu", "cuda", "mps").
+            local_files_only: If True, only use cached ML models (no network).
         """
         self.db_path = Path(db_path)
         self.index_path = Path(index_path)
@@ -145,8 +147,8 @@ class SearchEngine:
         logger.info("Initializing search engine components...")
 
         self.db = Database(self.db_path)
-        self.clip = CLIPProcessor(device=device)
-        self.caption_generator = CaptionGenerator(device=device)
+        self.clip = CLIPProcessor(device=device, local_files_only=local_files_only)
+        self.caption_generator = CaptionGenerator(device=device, local_files_only=local_files_only)
         self.location_service = LocationService()
         self.query_parser = QueryParser()
 

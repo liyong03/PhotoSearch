@@ -3,8 +3,8 @@
 # The Swift/SwiftUI frontend communicates with this backend via REST API
 
 # Core ML/AI Libraries
-torch>=2.0.0
-transformers>=4.30.0
+torch>=2.6.0  # Required for numpy 2.x compatibility and security fixes
+transformers>=4.44.0  # Required for numpy 2.x compatibility
 pillow>=10.0.0
 
 # Vector Search - FAISS
@@ -15,6 +15,9 @@ faiss-cpu>=1.7.4  # Use faiss-gpu for NVIDIA GPU acceleration
 
 # EXIF Data Extraction
 exifread>=3.0.0
+
+# HEIC/HEIF Image Support
+pillow-heif>=1.0.0
 
 # Location Services (reverse geocoding)
 geopy>=2.3.0
