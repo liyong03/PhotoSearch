@@ -131,27 +131,67 @@ PhotoSearch/
 
 ## API Endpoints
 
-The Python backend exposes these endpoints:
+The Python backend exposes a REST API at `http://localhost:8765/api/v1`.
+
+Interactive API documentation is available at `http://localhost:8765/docs` when the backend is running.
+
+### Core Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | /api/v1/search | Search photos |
-| POST | /api/v1/index | Index single photo |
-| POST | /api/v1/index/batch | Index folder |
-| GET | /api/v1/index/status/{id} | Indexing progress |
-| POST | /api/v1/geocode | Location → bounding box |
-| GET | /api/v1/status | Backend health |
+| GET | /api/v1/status | Backend status and statistics |
+| GET | /api/v1/health | Simple health check |
+
+### Search
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/v1/search | Semantic photo search with filters |
+| POST | /api/v1/geocode | Convert place name to coordinates |
+
+### Indexing
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/v1/index | Index a single photo |
+| POST | /api/v1/index/batch | Index folder (background task) |
+| GET | /api/v1/index/status/{task_id} | Get indexing progress |
+| DELETE | /api/v1/index/{photo_id} | Remove photo from index |
+| POST | /api/v1/reindex | Rebuild entire index |
+
+### Photos
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/v1/photos | List indexed photos (paginated) |
+| GET | /api/v1/photos/{photo_id} | Get photo details |
+
+### Example: Search Request
+
+```bash
+curl -X POST http://localhost:8765/api/v1/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "sunset on beach",
+    "top_k": 20,
+    "location": "Hawaii"
+  }'
+```
 
 ## Development
 
 ### Running Tests
 
 ```bash
-# Python backend tests
+# Python backend tests (46 tests)
 cd Backend
 pytest
 
+# Run specific test file
+pytest tests/test_api.py -v
+
 # Swift tests
+cd PhotoSearch
 xcodebuild test -project PhotoSearch.xcodeproj -scheme PhotoSearch
 ```
 
@@ -163,12 +203,48 @@ source venv/bin/activate
 uvicorn photosearch.main:app --port 8765 --reload
 ```
 
+### Test Coverage
+
+| Component | Tests | Status |
+|-----------|-------|--------|
+| API Routes | 46 | ✅ Passing |
+| Search Engine | 15 | ✅ Passing |
+| CLIP Processor | 8 | ✅ Passing |
+| Caption Generator | 10 | ✅ Passing |
+| Location Service | 12 | ✅ Passing |
+| Database | 10 | ✅ Passing |
+| FAISS Index | 8 | ✅ Passing |
+| Swift Models | 25 | ✅ Passing |
+
 ## Privacy
 
 - All AI processing runs locally on your Mac
 - Photos are never uploaded to any server
 - Geocoding uses Nominatim (OpenStreetMap) - only place names are sent, not photo data
 - Index data stored in `~/Library/Application Support/PhotoSearch/`
+
+## Development Status
+
+### Backend (Python) - ✅ Complete
+- [x] FastAPI server with all endpoints
+- [x] CLIP embeddings for semantic search
+- [x] BLIP image captioning
+- [x] FAISS vector index
+- [x] SQLite database
+- [x] Location geocoding service
+- [x] Query parsing for natural language
+- [x] Comprehensive test suite (100+ tests)
+
+### Frontend (Swift) - 🚧 In Progress
+- [x] Project structure and models
+- [x] API client
+- [x] Search UI with photo grid
+- [x] Thumbnail caching
+- [ ] Folder selection (NSOpenPanel)
+- [ ] Security-scoped bookmarks
+- [ ] Filter panel (date/location)
+- [ ] Photo detail view
+- [ ] Backend auto-start
 
 ## License
 

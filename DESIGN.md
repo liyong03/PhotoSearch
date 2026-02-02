@@ -189,14 +189,64 @@ Response: {
 ### GET /status
 Backend health and stats.
 ```json
-Response: { "status": "ready", "indexed_count": 1500, "index_size_mb": 12.5 }
+Response: { "status": "ok", "version": "0.1.0", "indexed_count": 1500, "index_size_mb": 12.5 }
+```
+
+### GET /health
+Simple health check.
+```json
+Response: { "status": "healthy" }
 ```
 
 ### DELETE /index/{photo_id}
 Remove a photo from the index.
+```json
+Response: { "success": true, "message": "Photo {photo_id} removed from index" }
+```
 
 ### POST /reindex
 Rebuild entire index.
+```json
+Response: { "success": true, "message": "Reindex operation started" }
+```
+
+### GET /photos
+List indexed photos with pagination.
+```json
+Request: GET /photos?limit=100&offset=0
+Response: [
+    {
+        "id": "uuid",
+        "file_path": "/path/to/photo.jpg",
+        "filename": "photo.jpg",
+        "timestamp": "2024-06-15T18:30:00",
+        "city": "Honolulu",
+        "country": "USA",
+        "description": "A sunset over the ocean",
+        "tags": ["sunset", "ocean"]
+    }
+]
+```
+
+### GET /photos/{photo_id}
+Get details for a specific photo.
+```json
+Response: {
+    "id": "uuid",
+    "file_path": "/path/to/photo.jpg",
+    "filename": "photo.jpg",
+    "timestamp": "2024-06-15T18:30:00",
+    "latitude": 21.3069,
+    "longitude": -157.8583,
+    "city": "Honolulu",
+    "state": "Hawaii",
+    "country": "USA",
+    "place_name": "Waikiki Beach",
+    "description": "A sunset over the ocean",
+    "tags": ["sunset", "ocean"],
+    "indexed_at": "2024-06-20T10:00:00"
+}
+```
 
 ## Core Components
 
@@ -943,7 +993,7 @@ pytest tests/test_caption.py::test_image_types -v
 # Expected: Works for JPEG, PNG, various sizes
 ```
 
-**Acceptance Criteria**:
+**Acceptance Criteria**:`
 - [ ] BLIP model loads successfully
 - [ ] Captions are grammatically correct sentences
 - [ ] Captions accurately describe image content
