@@ -787,3 +787,266 @@ final class SearchViewModelIntegrationTests: XCTestCase {
         XCTAssertEqual(lastRequest?.query, "second")
     }
 }
+
+// MARK: - F5 Filters & Folder Management Tests
+
+final class FiltersAndFolderTests: XCTestCase {
+
+    // MARK: - Date Filter Tests
+
+    @MainActor
+    func testDateFilterUpdatesSearch() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        let startDate = Date(timeIntervalSince1970: 0)
+        let endDate = Date()
+
+        viewModel.searchQuery = "vacation"
+        viewModel.startDate = startDate
+        viewModel.endDate = endDate
+        await viewModel.search()
+
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertNotNil(lastRequest?.timeRange, "Search should include time range")
+        XCTAssertEqual(lastRequest?.timeRange?.start, startDate)
+        XCTAssertEqual(lastRequest?.timeRange?.end, endDate)
+    }
+
+    @MainActor
+    func testDateFilterNotIncludedWhenNotSet() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        viewModel.searchQuery = "beach"
+        // Don't set dates
+        await viewModel.search()
+
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertNil(lastRequest?.timeRange, "Search should not include time range when not set")
+    }
+
+    @MainActor
+    func testDateFilterRequiresBothDates() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        viewModel.searchQuery = "mountain"
+        viewModel.startDate = Date() // Only start date set
+        viewModel.endDate = nil
+        await viewModel.search()
+
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertNil(lastRequest?.timeRange, "Time range should only be included when both dates are set")
+    }
+
+    // MARK: - Location Filter Tests
+
+    @MainActor
+    func testLocationFilterIncludedInSearch() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        viewModel.searchQuery = "beach"
+        viewModel.locationFilter = "Hawaii"
+        await viewModel.search()
+
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertEqual(lastRequest?.location, "Hawaii", "Search should include location filter")
+    }
+
+    @MainActor
+    func testLocationFilterNotIncludedWhenEmpty() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        viewModel.searchQuery = "sunset"
+        viewModel.locationFilter = nil
+        await viewModel.search()
+
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertNil(lastRequest?.location, "Search should not include location when not set")
+    }
+
+    @MainActor
+    func testClearFiltersResetsAllFilters() {
+        let viewModel = SearchViewModel()
+
+        viewModel.startDate = Date()
+        viewModel.endDate = Date()
+        viewModel.locationFilter = "Paris"
+
+        viewModel.clearFilters()
+
+        XCTAssertNil(viewModel.startDate, "Start date should be nil after clear")
+        XCTAssertNil(viewModel.endDate, "End date should be nil after clear")
+        XCTAssertNil(viewModel.locationFilter, "Location filter should be nil after clear")
+    }
+
+    // MARK: - PhotoLoader Tests
+
+    func testPhotoLoaderSupportedExtensions() {
+        let extensions = PhotoLoader.supportedExtensions
+        XCTAssertTrue(extensions.contains("jpg"), "Should support jpg")
+        XCTAssertTrue(extensions.contains("jpeg"), "Should support jpeg")
+        XCTAssertTrue(extensions.contains("png"), "Should support png")
+        XCTAssertTrue(extensions.contains("heic"), "Should support heic")
+        XCTAssertTrue(extensions.contains("heif"), "Should support heif")
+    }
+
+    func testPhotoLoaderIsImageFile() {
+        let loader = PhotoLoader.shared
+
+        let jpgURL = URL(fileURLWithPath: "/test/photo.jpg")
+        let pngURL = URL(fileURLWithPath: "/test/image.png")
+        let txtURL = URL(fileURLWithPath: "/test/document.txt")
+        let heicURL = URL(fileURLWithPath: "/test/photo.HEIC")
+
+        // Note: These will return false because the files don't exist
+        // but the extension check happens first
+        XCTAssertFalse(loader.isImageFile(txtURL), "txt should not be an image file")
+    }
+
+    func testPhotoLoaderScanNonexistentFolder() {
+        let loader = PhotoLoader.shared
+        let url = URL(fileURLWithPath: "/nonexistent/folder/path")
+        let results = loader.scanFolder(url)
+        XCTAssertTrue(results.isEmpty, "Scanning nonexistent folder should return empty array")
+    }
+
+    // MARK: - FolderInfo Tests
+
+    func testFolderInfoInitialization() {
+        let url = URL(fileURLWithPath: "/Users/test/Photos")
+        let folder = FolderInfo(url: url, photoCount: 100, isIndexed: true)
+
+        XCTAssertEqual(folder.url, url)
+        XCTAssertEqual(folder.name, "Photos")
+        XCTAssertEqual(folder.photoCount, 100)
+        XCTAssertTrue(folder.isIndexed)
+        XCTAssertEqual(folder.path, "/Users/test/Photos")
+    }
+
+    func testFolderInfoEquality() {
+        let url = URL(fileURLWithPath: "/Users/test/Photos")
+        let folder1 = FolderInfo(url: url)
+        let folder2 = FolderInfo(url: url)
+
+        // Each FolderInfo has a unique UUID, so they should not be equal
+        XCTAssertNotEqual(folder1, folder2)
+        XCTAssertEqual(folder1, folder1)
+    }
+
+    // MARK: - BookmarkManager Tests
+
+    func testBookmarkManagerSavedFolderPaths() {
+        let defaults = UserDefaults(suiteName: "TestBookmarkManager")!
+        defaults.removePersistentDomain(forName: "TestBookmarkManager")
+
+        let manager = BookmarkManager(defaults: defaults)
+        let paths = manager.savedFolderPaths()
+        XCTAssertTrue(paths.isEmpty, "Initial saved paths should be empty")
+    }
+
+    func testBookmarkManagerHasBookmark() {
+        let defaults = UserDefaults(suiteName: "TestBookmarkManager2")!
+        defaults.removePersistentDomain(forName: "TestBookmarkManager2")
+
+        let manager = BookmarkManager(defaults: defaults)
+        let url = URL(fileURLWithPath: "/Users/test/Photos")
+
+        XCTAssertFalse(manager.hasBookmark(for: url), "Should not have bookmark initially")
+    }
+
+    // MARK: - LibraryViewModel Tests
+
+    @MainActor
+    func testLibraryViewModelInitialization() {
+        let mockClient = MockAPIClient()
+        let defaults = UserDefaults(suiteName: "TestLibraryViewModel")!
+        defaults.removePersistentDomain(forName: "TestLibraryViewModel")
+
+        let bookmarkManager = BookmarkManager(defaults: defaults)
+        let viewModel = LibraryViewModel(
+            bookmarkManager: bookmarkManager,
+            photoLoader: PhotoLoader.shared,
+            apiClient: mockClient
+        )
+
+        XCTAssertTrue(viewModel.folders.isEmpty)
+        XCTAssertNil(viewModel.selectedFolder)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    @MainActor
+    func testLibraryViewModelRemoveFolder() {
+        let mockClient = MockAPIClient()
+        let defaults = UserDefaults(suiteName: "TestLibraryViewModel2")!
+        defaults.removePersistentDomain(forName: "TestLibraryViewModel2")
+
+        let bookmarkManager = BookmarkManager(defaults: defaults)
+        let viewModel = LibraryViewModel(
+            bookmarkManager: bookmarkManager,
+            photoLoader: PhotoLoader.shared,
+            apiClient: mockClient
+        )
+
+        let url = URL(fileURLWithPath: "/Users/test/Photos")
+        let folder = FolderInfo(url: url, photoCount: 10)
+
+        // Manually add a folder (simulating what addFolder would do)
+        viewModel.folders.append(folder)
+        viewModel.selectedFolder = folder
+
+        XCTAssertEqual(viewModel.folders.count, 1)
+
+        // Remove the folder
+        viewModel.removeFolder(folder)
+
+        XCTAssertTrue(viewModel.folders.isEmpty)
+        XCTAssertNil(viewModel.selectedFolder)
+    }
+
+    @MainActor
+    func testLibraryViewModelDismissError() {
+        let mockClient = MockAPIClient()
+        let defaults = UserDefaults(suiteName: "TestLibraryViewModel3")!
+        defaults.removePersistentDomain(forName: "TestLibraryViewModel3")
+
+        let bookmarkManager = BookmarkManager(defaults: defaults)
+        let viewModel = LibraryViewModel(
+            bookmarkManager: bookmarkManager,
+            photoLoader: PhotoLoader.shared,
+            apiClient: mockClient
+        )
+
+        viewModel.errorMessage = "Test error"
+        XCTAssertNotNil(viewModel.errorMessage)
+
+        viewModel.dismissError()
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    // MARK: - Combined Filter Tests
+
+    @MainActor
+    func testCombinedFiltersInSearch() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        let startDate = Date(timeIntervalSince1970: 1000000)
+        let endDate = Date()
+
+        viewModel.searchQuery = "sunset"
+        viewModel.startDate = startDate
+        viewModel.endDate = endDate
+        viewModel.locationFilter = "California"
+        await viewModel.search()
+
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertEqual(lastRequest?.query, "sunset")
+        XCTAssertNotNil(lastRequest?.timeRange)
+        XCTAssertEqual(lastRequest?.location, "California")
+    }
+}

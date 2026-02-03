@@ -4,21 +4,41 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var searchViewModel = SearchViewModel()
+    @StateObject private var libraryViewModel = LibraryViewModel()
     @State private var selectedSidebarItem: SidebarItem? = .allPhotos
+    @State private var showFilters: Bool = false
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(selection: $selectedSidebarItem)
+            SidebarView(selection: $selectedSidebarItem, libraryViewModel: libraryViewModel)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
         } detail: {
             VStack(spacing: 0) {
                 // Search bar
-                SearchBar(text: $searchViewModel.searchQuery, onSubmit: {
-                    Task {
-                        await searchViewModel.search()
+                HStack {
+                    SearchBar(text: $searchViewModel.searchQuery, onSubmit: {
+                        Task {
+                            await searchViewModel.search()
+                        }
+                    })
+
+                    Button {
+                        withAnimation {
+                            showFilters.toggle()
+                        }
+                    } label: {
+                        Image(systemName: showFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                     }
-                })
+                    .buttonStyle(.borderless)
+                    .help("Toggle Filters")
+                }
                 .padding()
+
+                // Filter panel
+                if showFilters {
+                    FilterPanel(viewModel: searchViewModel)
+                    Divider()
+                }
 
                 Divider()
 
@@ -36,7 +56,11 @@ struct ContentView: View {
                 } else if searchViewModel.results.isEmpty && !searchViewModel.searchQuery.isEmpty {
                     NoResultsView(query: searchViewModel.searchQuery)
                 } else if searchViewModel.results.isEmpty {
-                    EmptyLibraryView()
+                    EmptyLibraryView {
+                        Task {
+                            await libraryViewModel.addFolder()
+                        }
+                    }
                 } else {
                     SearchResultsView(
                         results: searchViewModel.results,
@@ -54,7 +78,9 @@ struct ContentView: View {
                 }
 
                 Button {
-                    // Add folder action
+                    Task {
+                        await libraryViewModel.addFolder()
+                    }
                 } label: {
                     Label("Add Folder", systemImage: "folder.badge.plus")
                 }
@@ -146,6 +172,8 @@ struct NoResultsView: View {
 }
 
 struct EmptyLibraryView: View {
+    var onAddFolder: (() -> Void)?
+
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "photo.stack")
@@ -155,10 +183,12 @@ struct EmptyLibraryView: View {
                 .font(.headline)
             Text("Add a folder to start indexing photos.")
                 .foregroundColor(.secondary)
-            Button("Add Folder") {
-                // Add folder action
+            if let onAddFolder = onAddFolder {
+                Button("Add Folder") {
+                    onAddFolder()
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
