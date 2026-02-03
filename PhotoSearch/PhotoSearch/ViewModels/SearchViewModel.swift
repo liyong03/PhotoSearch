@@ -35,7 +35,7 @@ class SearchViewModel: ObservableObject {
 
     // MARK: - Private Properties
 
-    private let apiClient: APIClient
+    private let apiClient: any APIClientProtocol
     private var cancellables = Set<AnyCancellable>()
     private var searchTask: Task<Void, Never>?
 
@@ -44,7 +44,7 @@ class SearchViewModel: ObservableObject {
 
     // MARK: - Initialization
 
-    init(apiClient: APIClient = .shared) {
+    init(apiClient: any APIClientProtocol = APIClient.shared) {
         self.apiClient = apiClient
         setupSearchDebounce()
     }

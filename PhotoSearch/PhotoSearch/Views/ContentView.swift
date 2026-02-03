@@ -27,12 +27,22 @@ struct ContentView: View {
                     BackendNotReadyView()
                 } else if searchViewModel.isLoading {
                     LoadingView()
+                } else if let error = searchViewModel.errorMessage {
+                    SearchErrorView(message: error) {
+                        Task {
+                            await searchViewModel.search()
+                        }
+                    }
                 } else if searchViewModel.results.isEmpty && !searchViewModel.searchQuery.isEmpty {
                     NoResultsView(query: searchViewModel.searchQuery)
                 } else if searchViewModel.results.isEmpty {
                     EmptyLibraryView()
                 } else {
-                    PhotoGridView(photos: searchViewModel.results)
+                    SearchResultsView(
+                        results: searchViewModel.results,
+                        totalResults: searchViewModel.totalResults,
+                        locationResolved: searchViewModel.locationResolved
+                    )
                 }
             }
             .frame(minWidth: 500)
@@ -165,6 +175,69 @@ struct IndexingProgressView: View {
             Text("\(Int(progress * 100))%")
                 .font(.caption)
                 .monospacedDigit()
+        }
+    }
+}
+
+struct SearchErrorView: View {
+    let message: String
+    var onRetry: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 48))
+                .foregroundColor(.red)
+            Text("Search Failed")
+                .font(.headline)
+            Text(message)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            if let onRetry = onRetry {
+                Button("Retry") {
+                    onRetry()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct SearchResultsView: View {
+    let results: [SearchResult]
+    let totalResults: Int
+    let locationResolved: LocationResolved?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Results header
+            HStack {
+                Text("\(totalResults) result\(totalResults == 1 ? "" : "s")")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                if let location = locationResolved {
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Image(systemName: "location.fill")
+                            .font(.caption)
+                        Text("Filtered by: \(location.query)")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.blue)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            Divider()
+
+            // Photo grid
+            PhotoGridView(photos: results)
         }
     }
 }

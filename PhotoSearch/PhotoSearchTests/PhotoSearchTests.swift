@@ -481,3 +481,309 @@ final class PhotoSearchTests: XCTestCase {
         XCTAssertEqual(found?.path, "/b.jpg")
     }
 }
+
+// MARK: - Mock API Client for Testing
+
+/// Mock API client for testing SearchViewModel
+actor MockAPIClient: APIClientProtocol {
+    var searchCalled = false
+    var searchCallCount = 0
+    var lastSearchRequest: SearchRequest?
+    var mockSearchResponse: SearchResponse?
+    var mockError: Error?
+    var searchDelay: TimeInterval = 0
+
+    func getStatus() async throws -> BackendStatus {
+        BackendStatus(status: "ready", indexedCount: 0, vectorIndexSize: 0, locationCache: nil)
+    }
+
+    func isBackendReady() async -> Bool {
+        true
+    }
+
+    func search(_ request: SearchRequest) async throws -> SearchResponse {
+        searchCalled = true
+        searchCallCount += 1
+        lastSearchRequest = request
+
+        if searchDelay > 0 {
+            try await Task.sleep(nanoseconds: UInt64(searchDelay * 1_000_000_000))
+        }
+
+        if let error = mockError {
+            throw error
+        }
+
+        return mockSearchResponse ?? SearchResponse(
+            results: [],
+            totalResults: 0,
+            locationResolved: nil
+        )
+    }
+
+    func search(query: String, topK: Int, location: String?) async throws -> SearchResponse {
+        let request = SearchRequest(query: query, topK: topK, location: location)
+        return try await search(request)
+    }
+
+    func indexPhoto(path: String) async throws -> IndexResult {
+        IndexResult(id: "test", path: path, description: nil, tags: [], location: nil, timestamp: nil)
+    }
+
+    func indexFolder(path: String, recursive: Bool) async throws -> IndexTask {
+        IndexTask(taskId: "test-task", status: "started", totalFiles: nil)
+    }
+
+    func getIndexStatus(taskId: String) async throws -> IndexProgress {
+        IndexProgress(taskId: taskId, status: "completed", progress: 1.0, processed: 100, total: 100, errors: [])
+    }
+
+    func deletePhoto(photoId: String) async throws {
+        // No-op for mock
+    }
+
+    func geocode(placeName: String) async throws -> GeocodeResponse {
+        GeocodeResponse(name: placeName, boundingBox: nil, center: nil)
+    }
+
+    func setMockResponse(_ response: SearchResponse) {
+        mockSearchResponse = response
+    }
+
+    func setMockError(_ error: Error) {
+        mockError = error
+    }
+
+    func setSearchDelay(_ delay: TimeInterval) {
+        searchDelay = delay
+    }
+
+    func reset() {
+        searchCalled = false
+        searchCallCount = 0
+        lastSearchRequest = nil
+        mockSearchResponse = nil
+        mockError = nil
+        searchDelay = 0
+    }
+
+    func getSearchCalled() -> Bool { searchCalled }
+    func getSearchCallCount() -> Int { searchCallCount }
+    func getLastSearchRequest() -> SearchRequest? { lastSearchRequest }
+}
+
+// MARK: - F4 Search Integration Tests
+
+final class SearchViewModelIntegrationTests: XCTestCase {
+
+    @MainActor
+    func testSearchTriggersAPICall() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        viewModel.searchQuery = "sunset"
+        await viewModel.search()
+
+        let searchCalled = await mockClient.getSearchCalled()
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertTrue(searchCalled, "Search should trigger API call")
+        XCTAssertEqual(lastRequest?.query, "sunset")
+    }
+
+    @MainActor
+    func testResultsUpdateFromAPI() async {
+        let mockClient = MockAPIClient()
+        let mockPhoto = SearchResult(
+            id: "1",
+            path: "/photos/sunset.jpg",
+            score: 0.95,
+            description: "A sunset",
+            timestamp: nil,
+            city: "Honolulu",
+            state: "Hawaii",
+            country: "USA"
+        )
+        await mockClient.setMockResponse(SearchResponse(
+            results: [mockPhoto],
+            totalResults: 1,
+            locationResolved: nil
+        ))
+
+        let viewModel = SearchViewModel(apiClient: mockClient)
+        viewModel.searchQuery = "sunset"
+        await viewModel.search()
+
+        XCTAssertEqual(viewModel.results.count, 1)
+        XCTAssertEqual(viewModel.results.first?.id, "1")
+        XCTAssertEqual(viewModel.totalResults, 1)
+    }
+
+    @MainActor
+    func testLoadingStateDuringSearch() async {
+        let mockClient = MockAPIClient()
+        await mockClient.setSearchDelay(0.5) // 500ms delay to ensure loading state is visible
+
+        let viewModel = SearchViewModel(apiClient: mockClient)
+        viewModel.searchQuery = "sunset"
+
+        // Verify initial state
+        XCTAssertFalse(viewModel.isLoading, "Should not be loading initially")
+
+        // Start search in background
+        let searchTask = Task {
+            await viewModel.search()
+        }
+
+        // Poll for loading state with timeout
+        var loadingObserved = false
+        for _ in 0..<100 { // Up to 500ms
+            if viewModel.isLoading {
+                loadingObserved = true
+                break
+            }
+            try? await Task.sleep(nanoseconds: 5_000_000) // 5ms
+        }
+
+        XCTAssertTrue(loadingObserved, "Should observe loading state during search")
+
+        // Wait for our manual search to complete
+        await searchTask.value
+
+        // Wait for debounced search to also complete (debounce is 0.3s + search delay 0.15s)
+        // Poll until loading clears, with a generous timeout
+        for _ in 0..<100 { // Up to 1 second
+            if !viewModel.isLoading {
+                break
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
+        }
+
+        XCTAssertFalse(viewModel.isLoading, "Should not be loading after all searches complete")
+    }
+
+    @MainActor
+    func testErrorStateOnAPIFailure() async {
+        let mockClient = MockAPIClient()
+        await mockClient.setMockError(APIError.networkError("Connection failed"))
+
+        let viewModel = SearchViewModel(apiClient: mockClient)
+        viewModel.searchQuery = "sunset"
+        await viewModel.search()
+
+        XCTAssertNotNil(viewModel.errorMessage, "Error message should be set on failure")
+        XCTAssertTrue(viewModel.results.isEmpty, "Results should be empty on error")
+    }
+
+    @MainActor
+    func testEmptyQueryDoesNotTriggerSearch() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        viewModel.searchQuery = ""
+        await viewModel.search()
+
+        let searchCalled = await mockClient.getSearchCalled()
+        XCTAssertFalse(searchCalled, "Empty query should not trigger API call")
+    }
+
+    @MainActor
+    func testWhitespaceOnlyQueryDoesNotTriggerSearch() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        viewModel.searchQuery = "   "
+        await viewModel.search()
+
+        let searchCalled = await mockClient.getSearchCalled()
+        XCTAssertFalse(searchCalled, "Whitespace-only query should not trigger API call")
+    }
+
+    @MainActor
+    func testSearchWithLocationFilter() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        viewModel.searchQuery = "beach"
+        viewModel.locationFilter = "Hawaii"
+        await viewModel.search()
+
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertEqual(lastRequest?.location, "Hawaii")
+    }
+
+    @MainActor
+    func testSearchWithTimeRange() async {
+        let mockClient = MockAPIClient()
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        let startDate = Date(timeIntervalSince1970: 0)
+        let endDate = Date()
+
+        viewModel.searchQuery = "vacation"
+        viewModel.startDate = startDate
+        viewModel.endDate = endDate
+        await viewModel.search()
+
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertNotNil(lastRequest?.timeRange)
+    }
+
+    @MainActor
+    func testLocationResolvedFromResponse() async {
+        let mockClient = MockAPIClient()
+        let locationResolved = LocationResolved(
+            query: "Hawaii",
+            boundingBox: BoundingBox(minLat: 18.91, maxLat: 22.24, minLon: -160.25, maxLon: -154.81)
+        )
+        await mockClient.setMockResponse(SearchResponse(
+            results: [],
+            totalResults: 0,
+            locationResolved: locationResolved
+        ))
+
+        let viewModel = SearchViewModel(apiClient: mockClient)
+        viewModel.searchQuery = "photos from Hawaii"
+        await viewModel.search()
+
+        XCTAssertNotNil(viewModel.locationResolved)
+        XCTAssertEqual(viewModel.locationResolved?.query, "Hawaii")
+    }
+
+    @MainActor
+    func testClearResetsAllState() {
+        let viewModel = SearchViewModel()
+        viewModel.searchQuery = "test"
+        viewModel.errorMessage = "error"
+        viewModel.totalResults = 10
+
+        viewModel.clear()
+
+        XCTAssertEqual(viewModel.searchQuery, "")
+        XCTAssertTrue(viewModel.results.isEmpty)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertNil(viewModel.locationResolved)
+        XCTAssertEqual(viewModel.totalResults, 0)
+    }
+
+    @MainActor
+    func testMultipleSearchesCancelPrevious() async {
+        let mockClient = MockAPIClient()
+        await mockClient.setSearchDelay(0.2) // 200ms delay
+
+        let viewModel = SearchViewModel(apiClient: mockClient)
+
+        // Start first search
+        viewModel.searchQuery = "first"
+        let task1 = Task { await viewModel.search() }
+
+        // Immediately start second search (should cancel first)
+        viewModel.searchQuery = "second"
+        await viewModel.search()
+
+        task1.cancel()
+
+        // Only the second search should complete
+        let lastRequest = await mockClient.getLastSearchRequest()
+        XCTAssertEqual(lastRequest?.query, "second")
+    }
+}

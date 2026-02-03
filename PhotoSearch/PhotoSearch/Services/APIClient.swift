@@ -1,8 +1,21 @@
 import Foundation
 
+/// Protocol for API client operations (enables testing with mocks).
+protocol APIClientProtocol: Sendable {
+    func getStatus() async throws -> BackendStatus
+    func isBackendReady() async -> Bool
+    func search(_ request: SearchRequest) async throws -> SearchResponse
+    func search(query: String, topK: Int, location: String?) async throws -> SearchResponse
+    func indexPhoto(path: String) async throws -> IndexResult
+    func indexFolder(path: String, recursive: Bool) async throws -> IndexTask
+    func getIndexStatus(taskId: String) async throws -> IndexProgress
+    func deletePhoto(photoId: String) async throws
+    func geocode(placeName: String) async throws -> GeocodeResponse
+}
+
 /// Client for communicating with the PhotoSearch backend API.
 /// Thread-safe actor that handles all HTTP communication with the backend.
-actor APIClient {
+actor APIClient: APIClientProtocol {
     /// Shared singleton instance.
     static let shared = APIClient()
 
