@@ -4,6 +4,7 @@ import QuickLook
 /// Grid view displaying photo thumbnails with keyboard navigation.
 struct PhotoGridView: View {
     let photos: [SearchResult]
+    var onPhotoDetail: ((SearchResult) -> Void)?
 
     @State private var selectedPhotoID: String?
     @State private var selectedIndex: Int = 0
@@ -27,10 +28,30 @@ struct PhotoGridView: View {
                                 selectPhoto(at: index)
                             },
                             onDoubleClick: {
-                                openPhoto(photo)
+                                showPhotoDetail(photo)
                             }
                         )
                         .id(photo.id)
+                        .contextMenu {
+                            Button("Show Details") {
+                                showPhotoDetail(photo)
+                            }
+
+                            Button("Quick Look") {
+                                quickLookURL = URL(fileURLWithPath: photo.path)
+                            }
+                            .keyboardShortcut(" ", modifiers: [])
+
+                            Divider()
+
+                            Button("Open in Preview") {
+                                openPhoto(photo)
+                            }
+
+                            Button("Reveal in Finder") {
+                                revealInFinder(photo)
+                            }
+                        }
                     }
                 }
                 .padding()
@@ -156,6 +177,20 @@ struct PhotoGridView: View {
     private func openSelectedPhoto() {
         guard let photo = selectedPhoto else { return }
         openPhoto(photo)
+    }
+
+    private func showPhotoDetail(_ photo: SearchResult) {
+        onPhotoDetail?(photo)
+    }
+
+    private func showSelectedPhotoDetail() {
+        guard let photo = selectedPhoto else { return }
+        showPhotoDetail(photo)
+    }
+
+    private func revealInFinder(_ photo: SearchResult) {
+        let url = URL(fileURLWithPath: photo.path)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }
 

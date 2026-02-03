@@ -531,12 +531,36 @@ actor MockAPIClient: APIClientProtocol {
     }
 
     func indexFolder(path: String, recursive: Bool) async throws -> IndexTask {
-        IndexTask(taskId: "test-task", status: "started", totalFiles: nil)
+        indexFolderCalled = true
+        lastIndexPath = path
+        if let task = mockIndexTask {
+            return task
+        }
+        return IndexTask(taskId: "test-task", status: "started", totalFiles: nil)
     }
 
+    var mockIndexProgress: IndexProgress?
+    var mockIndexTask: IndexTask?
+    var indexFolderCalled = false
+    var lastIndexPath: String?
+
     func getIndexStatus(taskId: String) async throws -> IndexProgress {
-        IndexProgress(taskId: taskId, status: "completed", progress: 1.0, processed: 100, total: 100, errors: [])
+        if let progress = mockIndexProgress {
+            return progress
+        }
+        return IndexProgress(taskId: taskId, status: "completed", progress: 1.0, processed: 100, total: 100, errors: [])
     }
+
+    func setMockIndexProgress(_ progress: IndexProgress) {
+        mockIndexProgress = progress
+    }
+
+    func setMockIndexTask(_ task: IndexTask) {
+        mockIndexTask = task
+    }
+
+    func getIndexFolderCalled() -> Bool { indexFolderCalled }
+    func getLastIndexPath() -> String? { lastIndexPath }
 
     func deletePhoto(photoId: String) async throws {
         // No-op for mock
@@ -565,6 +589,10 @@ actor MockAPIClient: APIClientProtocol {
         mockSearchResponse = nil
         mockError = nil
         searchDelay = 0
+        mockIndexProgress = nil
+        mockIndexTask = nil
+        indexFolderCalled = false
+        lastIndexPath = nil
     }
 
     func getSearchCalled() -> Bool { searchCalled }
@@ -1048,5 +1076,284 @@ final class FiltersAndFolderTests: XCTestCase {
         XCTAssertEqual(lastRequest?.query, "sunset")
         XCTAssertNotNil(lastRequest?.timeRange)
         XCTAssertEqual(lastRequest?.location, "California")
+    }
+}
+
+// MARK: - F6 Indexing Progress Tests
+
+final class IndexingProgressTests: XCTestCase {
+
+    // MARK: - IndexingViewModel Initialization Tests
+
+    @MainActor
+    func testIndexingViewModelInitialization() {
+        let mockClient = MockAPIClient()
+        let viewModel = IndexingViewModel(apiClient: mockClient)
+
+        XCTAssertFalse(viewModel.isIndexing)
+        XCTAssertEqual(viewModel.progress, 0.0)
+        XCTAssertEqual(viewModel.processedCount, 0)
+        XCTAssertEqual(viewModel.totalCount, 0)
+        XCTAssertNil(viewModel.currentTaskId)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.isComplete)
+        XCTAssertTrue(viewModel.errors.isEmpty)
+    }
+
+    // MARK: - Progress Update Tests
+
+    @MainActor
+    func testProgressUpdates() async {
+        let mockClient = MockAPIClient()
+        let viewModel = IndexingViewModel(apiClient: mockClient)
+
+        // Set up mock progress response
+        await mockClient.setMockIndexProgress(IndexProgress(
+            taskId: "test-task",
+            status: "running",
+            progress: 0.5,
+            processed: 50,
+            total: 100,
+            errors: []
+        ))
+
+        // Set task ID manually to simulate an active indexing task
+        viewModel.currentTaskId = "test-task"
+
+        await viewModel.checkProgress()
+
+        XCTAssertEqual(viewModel.progress, 0.5, "Progress should be 0.5")
+        XCTAssertEqual(viewModel.processedCount, 50, "Processed count should be 50")
+        XCTAssertEqual(viewModel.totalCount, 100, "Total count should be 100")
+    }
+
+    @MainActor
+    func testProgressPercent() {
+        let viewModel = IndexingViewModel()
+
+        viewModel.progress = 0.0
+        XCTAssertEqual(viewModel.progressPercent, "0%")
+
+        viewModel.progress = 0.5
+        XCTAssertEqual(viewModel.progressPercent, "50%")
+
+        viewModel.progress = 1.0
+        XCTAssertEqual(viewModel.progressPercent, "100%")
+
+        viewModel.progress = 0.333
+        XCTAssertEqual(viewModel.progressPercent, "33%")
+    }
+
+    @MainActor
+    func testProgressDescription() {
+        let viewModel = IndexingViewModel()
+
+        viewModel.totalCount = 0
+        XCTAssertEqual(viewModel.progressDescription, "Processing...")
+
+        viewModel.processedCount = 50
+        viewModel.totalCount = 100
+        XCTAssertEqual(viewModel.progressDescription, "50 of 100 photos")
+
+        viewModel.processedCount = 1
+        viewModel.totalCount = 1
+        XCTAssertEqual(viewModel.progressDescription, "1 of 1 photos")
+    }
+
+    // MARK: - Start Indexing Tests
+
+    @MainActor
+    func testStartIndexingSetsState() async {
+        let mockClient = MockAPIClient()
+        await mockClient.setMockIndexTask(IndexTask(taskId: "new-task", status: "started", totalFiles: 50))
+
+        let viewModel = IndexingViewModel(apiClient: mockClient)
+        await viewModel.startIndexing(path: "/test/photos")
+
+        XCTAssertTrue(viewModel.isIndexing, "Should be indexing after start")
+        XCTAssertEqual(viewModel.currentTaskId, "new-task", "Task ID should be set")
+        XCTAssertEqual(viewModel.totalCount, 50, "Total count should be set from task")
+        XCTAssertFalse(viewModel.isComplete, "Should not be complete")
+    }
+
+    @MainActor
+    func testStartIndexingCallsAPI() async {
+        let mockClient = MockAPIClient()
+        let viewModel = IndexingViewModel(apiClient: mockClient)
+
+        await viewModel.startIndexing(path: "/Users/test/Photos")
+
+        let called = await mockClient.getIndexFolderCalled()
+        let path = await mockClient.getLastIndexPath()
+        XCTAssertTrue(called, "Should call indexFolder API")
+        XCTAssertEqual(path, "/Users/test/Photos", "Should pass correct path")
+    }
+
+    // MARK: - Cancel Indexing Tests
+
+    @MainActor
+    func testCancelIndexing() {
+        let viewModel = IndexingViewModel()
+        viewModel.isIndexing = true
+        viewModel.currentTaskId = "some-task"
+
+        viewModel.cancelIndexing()
+
+        XCTAssertFalse(viewModel.isIndexing, "Should not be indexing after cancel")
+        XCTAssertNil(viewModel.currentTaskId, "Task ID should be cleared")
+    }
+
+    // MARK: - Reset Tests
+
+    @MainActor
+    func testReset() {
+        let viewModel = IndexingViewModel()
+
+        // Set up some state
+        viewModel.isIndexing = true
+        viewModel.progress = 0.75
+        viewModel.processedCount = 75
+        viewModel.totalCount = 100
+        viewModel.currentTaskId = "test-task"
+        viewModel.isComplete = true
+        viewModel.errorMessage = "Some error"
+        viewModel.errors = ["Error 1", "Error 2"]
+
+        viewModel.reset()
+
+        XCTAssertFalse(viewModel.isIndexing)
+        XCTAssertEqual(viewModel.progress, 0.0)
+        XCTAssertEqual(viewModel.processedCount, 0)
+        XCTAssertEqual(viewModel.totalCount, 0)
+        XCTAssertNil(viewModel.currentTaskId)
+        XCTAssertFalse(viewModel.isComplete)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertTrue(viewModel.errors.isEmpty)
+    }
+
+    // MARK: - Error Handling Tests
+
+    @MainActor
+    func testHasErrors() {
+        let viewModel = IndexingViewModel()
+
+        XCTAssertFalse(viewModel.hasErrors, "Should have no errors initially")
+
+        viewModel.errors = ["Error 1"]
+        XCTAssertTrue(viewModel.hasErrors, "Should have errors after adding one")
+
+        viewModel.errors = []
+        XCTAssertFalse(viewModel.hasErrors, "Should have no errors after clearing")
+    }
+
+    @MainActor
+    func testDismissError() {
+        let viewModel = IndexingViewModel()
+        viewModel.errorMessage = "Test error"
+
+        XCTAssertNotNil(viewModel.errorMessage)
+
+        viewModel.dismissError()
+
+        XCTAssertNil(viewModel.errorMessage, "Error message should be dismissed")
+    }
+
+    // MARK: - Completion Tests
+
+    @MainActor
+    func testIndexingCompleteCallback() async {
+        let mockClient = MockAPIClient()
+        let viewModel = IndexingViewModel(apiClient: mockClient)
+
+        var completionCalled = false
+        viewModel.onComplete = {
+            completionCalled = true
+        }
+
+        // Set up complete progress
+        await mockClient.setMockIndexProgress(IndexProgress(
+            taskId: "test-task",
+            status: "completed",
+            progress: 1.0,
+            processed: 100,
+            total: 100,
+            errors: []
+        ))
+
+        viewModel.currentTaskId = "test-task"
+        viewModel.isIndexing = true
+
+        await viewModel.checkProgress()
+
+        XCTAssertTrue(completionCalled, "onComplete callback should be called")
+        XCTAssertTrue(viewModel.isComplete, "Should be marked complete")
+        XCTAssertFalse(viewModel.isIndexing, "Should no longer be indexing")
+    }
+
+    @MainActor
+    func testIndexingErrorCallback() async {
+        let mockClient = MockAPIClient()
+        let viewModel = IndexingViewModel(apiClient: mockClient)
+
+        var errorMessage: String?
+        viewModel.onError = { message in
+            errorMessage = message
+        }
+
+        // Set up failed progress
+        await mockClient.setMockIndexProgress(IndexProgress(
+            taskId: "test-task",
+            status: "failed",
+            progress: 0.3,
+            processed: 30,
+            total: 100,
+            errors: ["Failed to process file"]
+        ))
+
+        viewModel.currentTaskId = "test-task"
+        viewModel.isIndexing = true
+
+        await viewModel.checkProgress()
+
+        XCTAssertNotNil(errorMessage, "onError callback should be called")
+        XCTAssertFalse(viewModel.isIndexing, "Should no longer be indexing after failure")
+    }
+
+    // MARK: - Errors Array Tests
+
+    @MainActor
+    func testErrorsFromProgress() async {
+        let mockClient = MockAPIClient()
+        let viewModel = IndexingViewModel(apiClient: mockClient)
+
+        let testErrors = ["File not found: /a.jpg", "Permission denied: /b.png"]
+        await mockClient.setMockIndexProgress(IndexProgress(
+            taskId: "test-task",
+            status: "running",
+            progress: 0.8,
+            processed: 80,
+            total: 100,
+            errors: testErrors
+        ))
+
+        viewModel.currentTaskId = "test-task"
+        await viewModel.checkProgress()
+
+        XCTAssertEqual(viewModel.errors.count, 2)
+        XCTAssertEqual(viewModel.errors, testErrors)
+        XCTAssertTrue(viewModel.hasErrors)
+    }
+
+    // MARK: - No Task ID Tests
+
+    @MainActor
+    func testCheckProgressWithNoTaskId() async {
+        let viewModel = IndexingViewModel()
+        viewModel.currentTaskId = nil
+
+        // This should not crash and should not update any state
+        await viewModel.checkProgress()
+
+        XCTAssertEqual(viewModel.progress, 0.0, "Progress should remain unchanged")
     }
 }

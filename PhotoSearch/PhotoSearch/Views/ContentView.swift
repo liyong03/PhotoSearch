@@ -5,8 +5,11 @@ struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var searchViewModel = SearchViewModel()
     @StateObject private var libraryViewModel = LibraryViewModel()
+    @StateObject private var indexingViewModel = IndexingViewModel()
     @State private var selectedSidebarItem: SidebarItem? = .allPhotos
     @State private var showFilters: Bool = false
+    @State private var selectedPhotoForDetail: SearchResult?
+    @State private var showIndexingComplete: Bool = false
 
     var body: some View {
         NavigationSplitView {
@@ -58,14 +61,17 @@ struct ContentView: View {
                 } else if searchViewModel.results.isEmpty {
                     EmptyLibraryView {
                         Task {
-                            await libraryViewModel.addFolder()
+                            await addAndIndexFolder()
                         }
                     }
                 } else {
                     SearchResultsView(
                         results: searchViewModel.results,
                         totalResults: searchViewModel.totalResults,
-                        locationResolved: searchViewModel.locationResolved
+                        locationResolved: searchViewModel.locationResolved,
+                        onPhotoSelected: { photo in
+                            selectedPhotoForDetail = photo
+                        }
                     )
                 }
             }
@@ -73,17 +79,18 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                if appState.isIndexing {
-                    IndexingProgressView(progress: appState.indexingProgress)
+                if indexingViewModel.isIndexing {
+                    IndexingToolbarView(viewModel: indexingViewModel)
                 }
 
                 Button {
                     Task {
-                        await libraryViewModel.addFolder()
+                        await addAndIndexFolder()
                     }
                 } label: {
                     Label("Add Folder", systemImage: "folder.badge.plus")
                 }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
 
                 Button {
                     Task {
@@ -92,6 +99,19 @@ struct ContentView: View {
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
+                .keyboardShortcut("r", modifiers: .command)
+            }
+        }
+        // Keyboard shortcut for focusing search (Cmd+F)
+        .keyboardShortcut("f", modifiers: .command)
+        .onAppear {
+            // Set up keyboard shortcut handler
+            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "f" {
+                    NotificationCenter.default.post(name: .focusSearch, object: nil)
+                    return nil
+                }
+                return event
             }
         }
         .alert("Error", isPresented: .constant(appState.errorMessage != nil)) {
@@ -101,8 +121,34 @@ struct ContentView: View {
         } message: {
             Text(appState.errorMessage ?? "")
         }
-        .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in
-            // Focus search field
+        .alert("Indexing Complete", isPresented: $showIndexingComplete) {
+            Button("OK") {
+                showIndexingComplete = false
+            }
+        } message: {
+            Text("Successfully indexed \(indexingViewModel.processedCount) photos.")
+        }
+        .sheet(item: $selectedPhotoForDetail) { photo in
+            PhotoDetailView(photo: photo)
+                .frame(minWidth: 700, minHeight: 500)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .indexingComplete)) { _ in
+            showIndexingComplete = true
+            // Refresh the backend status to get updated photo count
+            Task {
+                await appState.checkBackendStatus()
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    private func addAndIndexFolder() async {
+        await libraryViewModel.addFolder()
+
+        // If a folder was added, start indexing it
+        if let folder = libraryViewModel.folders.last {
+            await indexingViewModel.startIndexing(path: folder.path)
         }
     }
 }
@@ -239,6 +285,7 @@ struct SearchResultsView: View {
     let results: [SearchResult]
     let totalResults: Int
     let locationResolved: LocationResolved?
+    var onPhotoSelected: ((SearchResult) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -267,8 +314,54 @@ struct SearchResultsView: View {
             Divider()
 
             // Photo grid
-            PhotoGridView(photos: results)
+            PhotoGridView(photos: results, onPhotoDetail: onPhotoSelected)
         }
+    }
+}
+
+// MARK: - Indexing Toolbar View
+
+struct IndexingToolbarView: View {
+    @ObservedObject var viewModel: IndexingViewModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView(value: viewModel.progress)
+                .progressViewStyle(.linear)
+                .frame(width: 100)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(viewModel.progressPercent)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .monospacedDigit()
+
+                Text(viewModel.progressDescription)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            if viewModel.hasErrors {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                    .help("\(viewModel.errors.count) error(s) during indexing")
+            }
+
+            Button {
+                viewModel.cancelIndexing()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Cancel Indexing")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
     }
 }
 

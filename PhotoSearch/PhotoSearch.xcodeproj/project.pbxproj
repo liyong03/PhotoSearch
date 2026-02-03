@@ -25,6 +25,8 @@
 		F5PL1002A1B2C3D4E5F60002 /* PhotoLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */; };
 		F5LV1003A1B2C3D4E5F60003 /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */; };
 		F5FP1004A1B2C3D4E5F60004 /* FilterPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FP2004A1B2C3D4E5F60004 /* FilterPanel.swift */; };
+		F6IV1005A1B2C3D4E5F60005 /* IndexingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */; };
+		F6PD1006A1B2C3D4E5F60006 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +61,8 @@
 		F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLoader.swift; sourceTree = "<group>"; };
 		F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
 		F5FP2004A1B2C3D4E5F60004 /* FilterPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterPanel.swift; sourceTree = "<group>"; };
+		F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexingViewModel.swift; sourceTree = "<group>"; };
+		F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -124,6 +128,7 @@
 			children = (
 				BDE4018632AE2F2A73ED7652 /* ContentView.swift */,
 				F5FP2004A1B2C3D4E5F60004 /* FilterPanel.swift */,
+				F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */,
 				462339EEC7D64F43FE9C99A2 /* PhotoGridView.swift */,
 				229A45CE46F4AC8C67D7266B /* PhotoThumbnailView.swift */,
 				3F375A2CA63217ED517AC145 /* SearchBar.swift */,
@@ -135,6 +140,7 @@
 		C8035B6330C367072CF6EC5F /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */,
 				F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */,
 				00E13FF9D277ADA879B94DC6 /* SearchViewModel.swift */,
 			);
@@ -257,8 +263,10 @@
 				F5BK1001A1B2C3D4E5F60001 /* BookmarkManager.swift in Sources */,
 				0D0196024D5B8FF22C75F400 /* ContentView.swift in Sources */,
 				F5FP1004A1B2C3D4E5F60004 /* FilterPanel.swift in Sources */,
+				F6IV1005A1B2C3D4E5F60005 /* IndexingViewModel.swift in Sources */,
 				F5LV1003A1B2C3D4E5F60003 /* LibraryViewModel.swift in Sources */,
 				920709E6A6CED24487A1B718 /* Photo.swift in Sources */,
+				F6PD1006A1B2C3D4E5F60006 /* PhotoDetailView.swift in Sources */,
 				3E5989342349EFE87BEFE62D /* PhotoGridView.swift in Sources */,
 				F5PL1002A1B2C3D4E5F60002 /* PhotoLoader.swift in Sources */,
 				AE13D182B3A4D27839409533 /* PhotoSearchApp.swift in Sources */,
