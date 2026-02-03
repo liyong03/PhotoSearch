@@ -5,28 +5,21 @@ import Foundation
 /// Backend status response.
 struct BackendStatus: Codable, Equatable {
     let status: String
+    let version: String?
     let indexedCount: Int?
-    let vectorIndexSize: Int?
-    let locationCache: LocationCacheInfo?
+    let indexSizeMb: Double?
 
     enum CodingKeys: String, CodingKey {
         case status
+        case version
         case indexedCount = "indexed_count"
-        case vectorIndexSize = "vector_index_size"
-        case locationCache = "location_cache"
+        case indexSizeMb = "index_size_mb"
     }
 
     /// Whether the backend is ready for requests.
     var isReady: Bool {
         status == "ready" || status == "ok"
     }
-}
-
-/// Location cache information.
-struct LocationCacheInfo: Codable, Equatable {
-    let hits: Int?
-    let misses: Int?
-    let size: Int?
 }
 
 // MARK: - Search
@@ -207,6 +200,7 @@ enum APIError: LocalizedError, Equatable {
     case decodingError(String)
     case serverError(Int, String?)
     case backendNotAvailable
+    case requestCancelled
 
     var errorDescription: String? {
         switch self {
@@ -220,6 +214,8 @@ enum APIError: LocalizedError, Equatable {
             return "Server error \(code): \(message ?? "Unknown error")"
         case .backendNotAvailable:
             return "Backend server is not available. Please start the backend."
+        case .requestCancelled:
+            return nil  // Cancelled requests should not show error to user
         }
     }
 
@@ -231,6 +227,11 @@ enum APIError: LocalizedError, Equatable {
         default:
             return false
         }
+    }
+
+    /// Whether this error is a cancellation (should be silently ignored).
+    var isCancellation: Bool {
+        self == .requestCancelled
     }
 }
 

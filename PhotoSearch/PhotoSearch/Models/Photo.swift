@@ -71,13 +71,26 @@ struct SearchResponse: Codable, Equatable {
 
 /// Resolved location information from a search query.
 struct LocationResolved: Codable, Equatable {
-    let query: String?
+    let name: String?
     let boundingBox: BoundingBox?
+    let center: LocationCenter?
 
     enum CodingKeys: String, CodingKey {
-        case query
+        case name
         case boundingBox = "bounding_box"
+        case center
     }
+
+    /// Alias for compatibility - returns name as query
+    var query: String? {
+        name
+    }
+}
+
+/// Center coordinate for a location.
+struct LocationCenter: Codable, Equatable {
+    let lat: Double?
+    let lon: Double?
 }
 
 /// Geographic bounding box.

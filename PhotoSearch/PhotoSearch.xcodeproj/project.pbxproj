@@ -63,6 +63,7 @@
 		F5FP2004A1B2C3D4E5F60004 /* FilterPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterPanel.swift; sourceTree = "<group>"; };
 		F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexingViewModel.swift; sourceTree = "<group>"; };
 		F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
+		F7IP2007A1B2C3D4E5F60007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -78,6 +79,7 @@
 		51773EEFD4A9FBFA92F5780B /* PhotoSearch */ = {
 			isa = PBXGroup;
 			children = (
+				F7IP2007A1B2C3D4E5F60007 /* Info.plist */,
 				F18317A4EDEFEB2624E17718 /* PhotoSearch.entitlements */,
 				18D83CF59A64A83915BD8415 /* App */,
 				D429FBBD0ADC040B25BDF07B /* Models */,
@@ -443,8 +445,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_GENERATION_MODE = GeneratedFile;
+				INFOPLIST_FILE = PhotoSearch/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -484,8 +485,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_GENERATION_MODE = GeneratedFile;
+				INFOPLIST_FILE = PhotoSearch/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

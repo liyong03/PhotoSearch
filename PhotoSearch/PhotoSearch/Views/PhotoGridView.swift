@@ -59,6 +59,7 @@ struct PhotoGridView: View {
             .background(Color(nsColor: .textBackgroundColor))
             .focusable()
             .focused($isFocused)
+            .focusEffectDisabled()
             .onKeyPress(.leftArrow) {
                 navigateLeft()
                 scrollToSelected(proxy: scrollProxy)

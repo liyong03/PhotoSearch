@@ -80,12 +80,16 @@ final class PhotoSearchTests: XCTestCase {
             "results": [{"id": "1", "path": "/a.jpg"}],
             "total_results": 1,
             "location_resolved": {
-                "query": "Hawaii",
+                "name": "Hawaii",
                 "bounding_box": {
                     "min_lat": 18.91,
                     "max_lat": 22.24,
                     "min_lon": -160.25,
                     "max_lon": -154.81
+                },
+                "center": {
+                    "lat": 20.5,
+                    "lon": -157.5
                 }
             }
         }
@@ -96,9 +100,11 @@ final class PhotoSearchTests: XCTestCase {
         let response = try decoder.decode(SearchResponse.self, from: data)
 
         XCTAssertNotNil(response.locationResolved)
-        XCTAssertEqual(response.locationResolved?.query, "Hawaii")
+        XCTAssertEqual(response.locationResolved?.name, "Hawaii")
+        XCTAssertEqual(response.locationResolved?.query, "Hawaii")  // Test computed property
         XCTAssertNotNil(response.locationResolved?.boundingBox)
         XCTAssertEqual(response.locationResolved?.boundingBox?.minLat, 18.91)
+        XCTAssertEqual(response.locationResolved?.center?.lat, 20.5)
     }
 
     // MARK: - Search Request Encoding Tests
@@ -131,9 +137,10 @@ final class PhotoSearchTests: XCTestCase {
     func testBackendStatusDecoding() throws {
         let json = """
         {
-            "status": "ready",
+            "status": "ok",
+            "version": "0.1.0",
             "indexed_count": 1500,
-            "vector_index_size": 1500
+            "index_size_mb": 15.5
         }
         """
 
@@ -141,9 +148,10 @@ final class PhotoSearchTests: XCTestCase {
         let decoder = JSONDecoder()
         let status = try decoder.decode(BackendStatus.self, from: data)
 
-        XCTAssertEqual(status.status, "ready")
+        XCTAssertEqual(status.status, "ok")
+        XCTAssertEqual(status.version, "0.1.0")
         XCTAssertEqual(status.indexedCount, 1500)
-        XCTAssertEqual(status.vectorIndexSize, 1500)
+        XCTAssertEqual(status.indexSizeMb, 15.5)
         XCTAssertTrue(status.isReady)
     }
 
@@ -494,7 +502,7 @@ actor MockAPIClient: APIClientProtocol {
     var searchDelay: TimeInterval = 0
 
     func getStatus() async throws -> BackendStatus {
-        BackendStatus(status: "ready", indexedCount: 0, vectorIndexSize: 0, locationCache: nil)
+        BackendStatus(status: "ok", version: "0.1.0", indexedCount: 0, indexSizeMb: 0.0)
     }
 
     func isBackendReady() async -> Bool {
@@ -677,16 +685,7 @@ final class SearchViewModelIntegrationTests: XCTestCase {
         // Wait for our manual search to complete
         await searchTask.value
 
-        // Wait for debounced search to also complete (debounce is 0.3s + search delay 0.15s)
-        // Poll until loading clears, with a generous timeout
-        for _ in 0..<100 { // Up to 1 second
-            if !viewModel.isLoading {
-                break
-            }
-            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
-        }
-
-        XCTAssertFalse(viewModel.isLoading, "Should not be loading after all searches complete")
+        XCTAssertFalse(viewModel.isLoading, "Should not be loading after search completes")
     }
 
     @MainActor
@@ -760,8 +759,9 @@ final class SearchViewModelIntegrationTests: XCTestCase {
     func testLocationResolvedFromResponse() async {
         let mockClient = MockAPIClient()
         let locationResolved = LocationResolved(
-            query: "Hawaii",
-            boundingBox: BoundingBox(minLat: 18.91, maxLat: 22.24, minLon: -160.25, maxLon: -154.81)
+            name: "Hawaii",
+            boundingBox: BoundingBox(minLat: 18.91, maxLat: 22.24, minLon: -160.25, maxLon: -154.81),
+            center: nil
         )
         await mockClient.setMockResponse(SearchResponse(
             results: [],

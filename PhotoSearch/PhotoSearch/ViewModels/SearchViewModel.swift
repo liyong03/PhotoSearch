@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 /// View model for search functionality.
 @MainActor
@@ -36,17 +35,12 @@ class SearchViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private let apiClient: any APIClientProtocol
-    private var cancellables = Set<AnyCancellable>()
     private var searchTask: Task<Void, Never>?
-
-    /// Debounce duration in seconds.
-    private let debounceInterval: TimeInterval = 0.3
 
     // MARK: - Initialization
 
     init(apiClient: any APIClientProtocol = APIClient.shared) {
         self.apiClient = apiClient
-        setupSearchDebounce()
     }
 
     // MARK: - Public Methods
@@ -88,6 +82,9 @@ class SearchViewModel: ObservableObject {
             totalResults = response.totalResults
             locationResolved = response.locationResolved
 
+        } catch let error as APIError where error.isCancellation {
+            // Request was cancelled (e.g., by a new search), silently ignore
+            return
         } catch {
             errorMessage = error.localizedDescription
             results = []
@@ -111,19 +108,5 @@ class SearchViewModel: ObservableObject {
         startDate = nil
         endDate = nil
         locationFilter = nil
-    }
-
-    // MARK: - Private Methods
-
-    private func setupSearchDebounce() {
-        $searchQuery
-            .debounce(for: .seconds(debounceInterval), scheduler: RunLoop.main)
-            .removeDuplicates()
-            .sink { [weak self] _ in
-                self?.searchTask = Task { [weak self] in
-                    await self?.search()
-                }
-            }
-            .store(in: &cancellables)
     }
 }

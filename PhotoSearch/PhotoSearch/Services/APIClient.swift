@@ -50,6 +50,15 @@ actor APIClient: APIClientProtocol {
         self.decoder = JSONDecoder()
         self.decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
+
+            // Handle null
+            if container.decodeNil() {
+                throw DecodingError.valueNotFound(Date.self, DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Date is null"
+                ))
+            }
+
             let dateString = try container.decode(String.self)
 
             // Try ISO8601 with fractional seconds
@@ -62,6 +71,28 @@ actor APIClient: APIClientProtocol {
             // Try ISO8601 without fractional seconds
             formatter.formatOptions = [.withInternetDateTime]
             if let date = formatter.date(from: dateString) {
+                return date
+            }
+
+            // Try basic ISO8601 (date only)
+            formatter.formatOptions = [.withFullDate]
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+
+            // Try with DateFormatter for other common formats
+            let dateFormatter = DateFormatter()
+            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+
+            // Try: 2024-01-15T10:30:00
+            dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            if let date = dateFormatter.date(from: dateString) {
+                return date
+            }
+
+            // Try: 2024-01-15 10:30:00
+            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            if let date = dateFormatter.date(from: dateString) {
                 return date
             }
 
@@ -205,10 +236,17 @@ actor APIClient: APIClientProtocol {
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
-            if error.code == .cannotConnectToHost || error.code == .networkConnectionLost {
+            switch error.code {
+            case .cannotConnectToHost, .networkConnectionLost, .notConnectedToInternet:
                 throw APIError.backendNotAvailable
+            case .cancelled:
+                // Request was cancelled (e.g., by a new search)
+                throw APIError.requestCancelled
+            case .timedOut:
+                throw APIError.networkError("Request timed out")
+            default:
+                throw APIError.networkError(error.localizedDescription)
             }
-            throw APIError.networkError(error.localizedDescription)
         } catch {
             throw APIError.networkError(error.localizedDescription)
         }
@@ -234,6 +272,13 @@ actor APIClient: APIClientProtocol {
         // Decode response
         do {
             return try decoder.decode(T.self, from: data)
+        } catch let decodingError as DecodingError {
+            // Log detailed decoding error for debugging
+            let responseString = String(data: data, encoding: .utf8) ?? "Unable to convert data to string"
+            print("🔴 Decoding error for \(T.self):")
+            print("Response: \(responseString)")
+            print("Error: \(decodingError)")
+            throw APIError.decodingError("Failed to decode \(T.self): \(decodingError.localizedDescription)")
         } catch {
             throw APIError.decodingError(error.localizedDescription)
         }
