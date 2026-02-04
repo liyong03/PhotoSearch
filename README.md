@@ -209,12 +209,63 @@ uvicorn photosearch.main:app --port 8765 --reload
 |-----------|-------|--------|
 | API Routes | 46 | ✅ Passing |
 | Search Engine | 15 | ✅ Passing |
-| CLIP Processor | 8 | ✅ Passing |
-| Caption Generator | 10 | ✅ Passing |
-| Location Service | 12 | ✅ Passing |
-| Database | 10 | ✅ Passing |
-| FAISS Index | 8 | ✅ Passing |
-| Swift Models | 25 | ✅ Passing |
+| CLIP Processor | 20 | ✅ Passing |
+| Caption Generator | 20 | ✅ Passing |
+| Location Service | 30 | ✅ Passing |
+| Database | 25 | ✅ Passing |
+| FAISS Index | 15 | ✅ Passing |
+| Performance | 15 | ✅ Passing |
+| **Total Backend** | **259** | ✅ Passing |
+
+## Data Management
+
+### Storage Location
+
+PhotoSearch stores its data in `~/Library/Application Support/PhotoSearch/`:
+- `photosearch.db` - SQLite database with photo metadata and captions
+- `faiss.index` - Vector index for fast similarity search
+
+### Delete and Reindex
+
+To completely reset the index and reindex all photos:
+
+```bash
+# 1. Stop the backend server (Ctrl+C)
+
+# 2. Delete the database and index
+rm -rf ~/Library/Application\ Support/PhotoSearch/
+
+# 3. Restart the backend
+cd Backend
+source venv/bin/activate
+uvicorn photosearch.main:app --port 8765 --reload
+
+# 4. Re-add your photo folders in the app
+```
+
+### Reindex via API
+
+You can also reindex using the API:
+
+```bash
+# Delete all indexed photos and reindex a folder
+curl -X POST http://localhost:8765/api/v1/index/batch \
+  -H "Content-Type: application/json" \
+  -d '{"folder_path": "/path/to/your/photos", "recursive": true}'
+
+# Check indexing progress
+curl http://localhost:8765/api/v1/index/status/{task_id}
+```
+
+### View Indexed Photos
+
+```bash
+# List all indexed photos
+curl http://localhost:8765/api/v1/photos?limit=100
+
+# Get total count
+curl http://localhost:8765/api/v1/status
+```
 
 ## Privacy
 

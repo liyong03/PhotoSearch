@@ -87,6 +87,8 @@ class SearchRequest(BaseModel):
     top_k: int = Field(default=20, ge=1, le=100, description="Number of results")
     time_range: TimeRange | None = Field(default=None, description="Optional time filter")
     location: str | None = Field(default=None, description="Optional location filter")
+    min_score: float = Field(default=0.15, ge=0.0, le=1.0, description="Minimum combined score threshold")
+    caption_weight: float = Field(default=0.5, ge=0.0, le=1.0, description="Weight for caption similarity (vs image)")
 
 
 class SearchResultItem(BaseModel):
@@ -245,12 +247,14 @@ async def search_photos(request: SearchRequest) -> SearchResponse:
     if request.time_range:
         time_range = (request.time_range.start, request.time_range.end)
 
-    # Execute search
+    # Execute search with semantic caption matching
     result = search_engine.search(
         query=request.query,
         top_k=request.top_k,
         time_range=time_range,
         location=request.location,
+        min_score=request.min_score,
+        caption_weight=request.caption_weight,
     )
 
     # Convert to response format

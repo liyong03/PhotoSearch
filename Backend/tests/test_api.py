@@ -736,7 +736,7 @@ class TestIntegration:
         mock_engine.index_folder.side_effect = mock_index_folder
         
         # Mock search to return results
-        def mock_search(query, top_k=20, time_range=None, location=None):
+        def mock_search(query, top_k=20, time_range=None, location=None, min_score=0.15, caption_weight=0.5):
             mock_result = MagicMock()
             mock_result.results = [
                 MagicMock(

@@ -219,8 +219,11 @@ class SearchEngine:
             # Generate caption and tags
             caption, tags = self.caption_generator.generate_caption_with_tags(image)
 
-            # Generate CLIP embedding
+            # Generate CLIP embedding for image
             embedding = self.clip.get_image_embedding(image)
+
+            # Generate CLIP embedding for caption (for semantic matching during search)
+            caption_embedding = self.clip.get_text_embedding(caption) if caption else None
 
             # Reverse geocode if GPS available
             location = None
@@ -253,6 +256,10 @@ class SearchEngine:
 
             # Store ID mapping
             self.db.save_embedding_mapping(photo.id, vector_id)
+
+            # Store caption embedding for semantic search
+            if caption_embedding is not None:
+                self.db.save_caption_embedding(photo.id, caption_embedding)
 
             logger.info(f"Indexed photo: {photo_path}")
 
@@ -341,20 +348,48 @@ class SearchEngine:
         """
         return self._indexing_tasks.get(task_id)
 
+    def _check_lexical_match(self, query: str, description: str, tags: list[str]) -> bool:
+        """Check if query terms appear in description or tags.
+
+        Uses WordNet + manual synonyms for comprehensive expansion.
+        Query terms are expanded, then we check if any expanded term appears in the document.
+
+        Args:
+            query: Search query.
+            description: Photo description/caption.
+            tags: Photo tags.
+
+        Returns:
+            True if any query term (or its synonym) matches document content.
+        """
+        from photosearch.core.synonym_service import check_match
+
+        return check_match(query, description, tags)
+
     def search(
         self,
         query: str,
         top_k: int = 20,
         time_range: Optional[tuple[datetime, datetime]] = None,
         location: Optional[str] = None,
+        min_score: float = 0.15,
+        caption_weight: float = 0.5,
     ) -> SearchResponse:
-        """Search for photos.
+        """Search for photos using lexical matching + image similarity ranking.
+
+        Uses a two-stage approach:
+        1. Lexical filtering: Only include photos where caption/tags contain query terms
+        2. Ranking: Use CLIP image-query similarity for final ranking
+
+        This ensures precision (only relevant photos) while using CLIP for ranking.
 
         Args:
             query: Search query (can include location phrases).
             top_k: Maximum number of results to return.
             time_range: Optional (start, end) datetime tuple.
             location: Optional explicit location filter.
+            min_score: Minimum image similarity score threshold (0.0-1.0).
+            caption_weight: Not used in current implementation (kept for API compatibility).
 
         Returns:
             SearchResponse with results.
@@ -376,20 +411,21 @@ class SearchEngine:
                 location_resolved = geocode_result.to_dict()
                 logger.debug(f"Resolved location '{query_location}' to bbox: {bbox}")
 
-        # Generate query embedding
+        # Generate query embedding for image similarity
         query_embedding = self.clip.get_text_embedding(semantic_query)
 
         # Search vector index (get more candidates for filtering)
-        search_k = top_k * 3 if (bbox or time_range) else top_k
-        vector_ids, scores = self.vector_index.search(query_embedding, k=search_k)
+        search_k = top_k * 10  # Get many candidates since we'll filter heavily
+        vector_ids, image_scores = self.vector_index.search(query_embedding, k=search_k)
 
         # Get photo IDs from vector IDs
         vector_id_list = [int(vid) for vid in vector_ids]
         id_mapping = self.db.get_embedding_mapping(vector_id_list)
 
-        # Get photo records and filter
-        results = []
-        for vector_id, score in zip(vector_ids, scores):
+        # Get photo records, apply lexical filter, and rank by image similarity
+        candidates = []
+
+        for vector_id, image_score in zip(vector_ids, image_scores):
             photo_id = id_mapping.get(int(vector_id))
             if photo_id is None:
                 continue
@@ -413,10 +449,41 @@ class SearchEngine:
                 if not bbox.contains(photo.latitude, photo.longitude):
                     continue
 
+            # KEY FILTER: Lexical match required
+            # Caption/tags must contain query terms (or synonyms)
+            has_lexical_match = self._check_lexical_match(
+                semantic_query,
+                photo.description,
+                photo.tags
+            )
+
+            if not has_lexical_match:
+                logger.debug(
+                    f"Filtered {photo_id}: no lexical match for '{semantic_query}' "
+                    f"in desc='{photo.description[:50] if photo.description else None}...'"
+                )
+                continue
+
+            # Use image similarity for ranking
+            final_score = float(image_score)
+
+            candidates.append((photo, final_score))
+
+            logger.debug(
+                f"Candidate {photo_id}: score={final_score:.3f} "
+                f"desc='{photo.description[:50] if photo.description else None}...'"
+            )
+
+        # Sort by score (image similarity)
+        candidates.sort(key=lambda x: x[1], reverse=True)
+
+        # Take top_k results
+        results = []
+        for photo, score in candidates[:top_k]:
             results.append(SearchResult(
                 id=photo.id,
                 path=photo.file_path,
-                score=float(score),
+                score=score,
                 description=photo.description,
                 timestamp=photo.timestamp,
                 city=photo.city,
@@ -424,8 +491,7 @@ class SearchEngine:
                 country=photo.country,
             ))
 
-            if len(results) >= top_k:
-                break
+        logger.info(f"Search returned {len(results)} results (from {len(candidates)} lexical matches)")
 
         return SearchResponse(
             results=results,

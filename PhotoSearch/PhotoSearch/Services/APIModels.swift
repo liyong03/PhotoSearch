@@ -30,12 +30,23 @@ struct SearchRequest: Codable, Equatable {
     let topK: Int
     let timeRange: TimeRange?
     let location: String?
+    let minScore: Double
+    let captionWeight: Double
 
-    init(query: String, topK: Int = 20, timeRange: TimeRange? = nil, location: String? = nil) {
+    init(
+        query: String,
+        topK: Int = 20,
+        timeRange: TimeRange? = nil,
+        location: String? = nil,
+        minScore: Double = 0.15,
+        captionWeight: Double = 0.5
+    ) {
         self.query = query
         self.topK = topK
         self.timeRange = timeRange
         self.location = location
+        self.minScore = minScore
+        self.captionWeight = captionWeight
     }
 
     enum CodingKeys: String, CodingKey {
@@ -43,6 +54,8 @@ struct SearchRequest: Codable, Equatable {
         case topK = "top_k"
         case timeRange = "time_range"
         case location
+        case minScore = "min_score"
+        case captionWeight = "caption_weight"
     }
 }
 

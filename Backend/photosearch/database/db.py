@@ -465,6 +465,83 @@ class Database:
         finally:
             conn.close()
 
+    def save_caption_embedding(self, photo_id: str, embedding: "np.ndarray") -> None:
+        """Save caption embedding for a photo.
+
+        Args:
+            photo_id: The photo's unique identifier.
+            embedding: Numpy array of the caption embedding.
+        """
+        import numpy as np
+
+        conn = self._get_connection()
+        try:
+            # Convert numpy array to bytes
+            embedding_bytes = embedding.astype(np.float32).tobytes()
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO caption_embeddings (photo_id, embedding)
+                VALUES (?, ?)
+                """,
+                (photo_id, embedding_bytes),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_caption_embedding(self, photo_id: str) -> Optional["np.ndarray"]:
+        """Get caption embedding for a photo.
+
+        Args:
+            photo_id: The photo's unique identifier.
+
+        Returns:
+            Numpy array of the caption embedding, or None if not found.
+        """
+        import numpy as np
+
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute(
+                "SELECT embedding FROM caption_embeddings WHERE photo_id = ?",
+                (photo_id,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            # Convert bytes back to numpy array
+            return np.frombuffer(row["embedding"], dtype=np.float32)
+        finally:
+            conn.close()
+
+    def get_caption_embeddings_batch(self, photo_ids: list[str]) -> dict[str, "np.ndarray"]:
+        """Get caption embeddings for multiple photos.
+
+        Args:
+            photo_ids: List of photo IDs.
+
+        Returns:
+            Dict mapping photo_id to embedding numpy array.
+        """
+        import numpy as np
+
+        if not photo_ids:
+            return {}
+
+        conn = self._get_connection()
+        try:
+            placeholders = ",".join("?" * len(photo_ids))
+            cursor = conn.execute(
+                f"SELECT photo_id, embedding FROM caption_embeddings WHERE photo_id IN ({placeholders})",
+                photo_ids,
+            )
+            return {
+                row["photo_id"]: np.frombuffer(row["embedding"], dtype=np.float32)
+                for row in cursor.fetchall()
+            }
+        finally:
+            conn.close()
+
     def close(self) -> None:
         """Close the database connection.
 

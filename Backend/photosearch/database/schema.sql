@@ -64,3 +64,10 @@ CREATE TABLE IF NOT EXISTS embeddings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_faiss_index ON embeddings(faiss_index);
+
+-- Caption embeddings table (stores CLIP text embeddings of captions)
+CREATE TABLE IF NOT EXISTS caption_embeddings (
+    photo_id TEXT PRIMARY KEY REFERENCES photos(id) ON DELETE CASCADE,
+    embedding BLOB NOT NULL,  -- Numpy array stored as bytes
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
