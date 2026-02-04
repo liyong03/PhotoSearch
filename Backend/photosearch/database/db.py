@@ -422,6 +422,54 @@ class Database:
         finally:
             conn.close()
 
+    def get_photos_by_folder(self, folder_path: str) -> list[Photo]:
+        """Get all photos in a folder (and subfolders).
+
+        Args:
+            folder_path: The folder path prefix to match.
+
+        Returns:
+            List of Photo objects in the folder.
+        """
+        conn = self._get_connection()
+        try:
+            # Ensure folder_path ends with / for proper prefix matching
+            if not folder_path.endswith("/"):
+                folder_path = folder_path + "/"
+
+            cursor = conn.execute(
+                "SELECT * FROM photos WHERE file_path LIKE ?",
+                (folder_path + "%",),
+            )
+            rows = cursor.fetchall()
+            return [self._row_to_photo(row) for row in rows]
+        finally:
+            conn.close()
+
+    def delete_photos_by_folder(self, folder_path: str) -> int:
+        """Delete all photos in a folder (and subfolders).
+
+        Args:
+            folder_path: The folder path prefix to match.
+
+        Returns:
+            Number of photos deleted.
+        """
+        conn = self._get_connection()
+        try:
+            # Ensure folder_path ends with / for proper prefix matching
+            if not folder_path.endswith("/"):
+                folder_path = folder_path + "/"
+
+            cursor = conn.execute(
+                "DELETE FROM photos WHERE file_path LIKE ?",
+                (folder_path + "%",),
+            )
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
+
     def save_embedding_mapping(self, photo_id: str, faiss_index: int) -> None:
         """Save the mapping between photo ID and FAISS index.
 

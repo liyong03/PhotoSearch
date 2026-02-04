@@ -10,6 +10,7 @@ protocol APIClientProtocol: Sendable {
     func indexFolder(path: String, recursive: Bool) async throws -> IndexTask
     func getIndexStatus(taskId: String) async throws -> IndexProgress
     func deletePhoto(photoId: String) async throws
+    func deleteFolder(path: String) async throws -> DeleteFolderResponse
     func geocode(placeName: String) async throws -> GeocodeResponse
 }
 
@@ -186,6 +187,15 @@ actor APIClient: APIClientProtocol {
         let _: EmptyResponse = try await delete("index/\(photoId)")
     }
 
+    /// Delete all photos in a folder from the index.
+    /// - Parameter path: Path to the folder to remove.
+    /// - Returns: Delete folder response with count of deleted photos.
+    /// - Throws: `APIError` if the request fails.
+    func deleteFolder(path: String) async throws -> DeleteFolderResponse {
+        let request = DeleteFolderRequest(folderPath: path)
+        return try await deleteWithBody("index/folder", body: request)
+    }
+
     // MARK: - Geocoding
 
     /// Geocode a place name to get its bounding box.
@@ -225,6 +235,17 @@ actor APIClient: APIClientProtocol {
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         request.timeoutInterval = timeoutInterval
+        return try await perform(request)
+    }
+
+    /// Perform a DELETE request with a JSON body.
+    private func deleteWithBody<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        let url = baseURL.appendingPathComponent(path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = timeoutInterval
+        request.httpBody = try encoder.encode(body)
         return try await perform(request)
     }
 

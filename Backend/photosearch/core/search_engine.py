@@ -522,6 +522,37 @@ class SearchEngine:
         logger.info(f"Removed photo: {photo_id}")
         return True
 
+    def remove_folder(self, folder_path: Path | str) -> int:
+        """Remove all photos in a folder from the index.
+
+        Args:
+            folder_path: Path to the folder to remove.
+
+        Returns:
+            Number of photos removed.
+        """
+        folder_path = str(Path(folder_path).absolute())
+
+        # Get all photos in the folder
+        photos = self.db.get_photos_by_folder(folder_path)
+
+        if not photos:
+            logger.info(f"No photos found in folder: {folder_path}")
+            return 0
+
+        # Remove from vector index
+        vector_ids = [self._photo_id_to_vector_id(photo.id) for photo in photos]
+        self.vector_index.remove(vector_ids)
+
+        # Remove from database
+        count = self.db.delete_photos_by_folder(folder_path)
+
+        # Save the updated index
+        self._save_index()
+
+        logger.info(f"Removed {count} photos from folder: {folder_path}")
+        return count
+
     def get_status(self) -> dict:
         """Get search engine status.
 
@@ -544,3 +575,13 @@ class SearchEngine:
         """Close the search engine and save state."""
         self._save_index()
         logger.info("Search engine closed")
+
+    def reload_index(self) -> None:
+        """Reload the vector index from disk.
+
+        This should be called after external processes (like background indexing)
+        have modified the index file, to ensure the in-memory state is up to date.
+        """
+        logger.info("Reloading vector index from disk...")
+        self.vector_index.reload_from(self.index_path)
+        logger.info(f"Reloaded vector index with {self.vector_index.size} vectors")

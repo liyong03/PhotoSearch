@@ -204,6 +204,30 @@ struct Coordinate: Codable, Equatable {
     let lon: Double
 }
 
+// MARK: - Delete Folder
+
+/// Request to delete a folder from the index.
+struct DeleteFolderRequest: Codable, Equatable {
+    let folderPath: String
+
+    enum CodingKeys: String, CodingKey {
+        case folderPath = "folder_path"
+    }
+}
+
+/// Response from deleting a folder.
+struct DeleteFolderResponse: Codable, Equatable {
+    let success: Bool
+    let message: String
+    let deletedCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case message
+        case deletedCount = "deleted_count"
+    }
+}
+
 // MARK: - API Error
 
 /// Errors that can occur when communicating with the backend API.

@@ -339,3 +339,40 @@ class VectorIndex:
         )
 
         return new_index
+
+    def reload_from(self, path: Path | str) -> None:
+        """Reload index from file, replacing current in-memory state.
+
+        This is useful when the index file has been updated by another process
+        (e.g., a background indexing task).
+
+        Args:
+            path: Path to the saved index file.
+
+        Raises:
+            FileNotFoundError: If index file doesn't exist.
+        """
+        path = Path(path)
+        if not path.exists():
+            # If file doesn't exist, just clear and return (fresh start)
+            self.clear()
+            logger.info("Index file not found, cleared in-memory index")
+            return
+
+        # Load the FAISS index
+        self.index = faiss.read_index(str(path))
+
+        # Load ID mapping
+        mapping_path = path.with_suffix('.mapping.npz')
+        if mapping_path.exists():
+            data = np.load(mapping_path)
+            keys = data['id_to_pos_keys']
+            values = data['id_to_pos_values']
+            self._id_to_pos = dict(zip(keys.tolist(), values.tolist()))
+            self._pos_to_id = {v: k for k, v in self._id_to_pos.items()}
+        else:
+            # Assume sequential IDs if no mapping file
+            self._id_to_pos = {i: i for i in range(self.index.ntotal)}
+            self._pos_to_id = dict(self._id_to_pos)
+
+        logger.info(f"Reloaded index with {self.size} vectors from {path}")

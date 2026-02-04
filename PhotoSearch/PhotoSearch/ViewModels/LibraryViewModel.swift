@@ -78,13 +78,28 @@ class LibraryViewModel: ObservableObject {
 
     /// Remove a folder from the library.
     /// - Parameter folder: The folder to remove.
-    func removeFolder(_ folder: FolderInfo) {
+    /// - Parameter deleteFromIndex: Whether to also delete the photos from the search index.
+    func removeFolder(_ folder: FolderInfo, deleteFromIndex: Bool = true) {
+        // Remove from local bookmarks
         bookmarkManager.stopAccessing(folder.url)
         bookmarkManager.removeBookmark(for: folder.url)
         folders.removeAll { $0.id == folder.id }
 
         if selectedFolder?.id == folder.id {
             selectedFolder = folders.first
+        }
+
+        // Delete from backend index if requested
+        if deleteFromIndex {
+            Task {
+                do {
+                    let response = try await apiClient.deleteFolder(path: folder.path)
+                    print("Deleted \(response.deletedCount) photos from index for folder: \(folder.path)")
+                } catch {
+                    // Log error but don't show to user - folder is already removed locally
+                    print("Failed to delete folder from index: \(error.localizedDescription)")
+                }
+            }
         }
     }
 

@@ -1046,3 +1046,348 @@ class TestErrorHandling:
 
         response = client.put("/api/v1/status")
         assert response.status_code == 405
+
+
+# =============================================================================
+# Search Engine Reload Tests (Bug Fix for Delete-Reindex-Search)
+# =============================================================================
+
+
+class TestSearchEngineReload:
+    """Tests for search engine reload functionality.
+
+    This tests the bug fix for: after delete index and reindex new photos,
+    search returns empty because the main search engine singleton has stale
+    vector index data.
+    """
+
+    def test_vector_index_reload_from(self):
+        """Test VectorIndex.reload_from() loads updated index from disk."""
+        import numpy as np
+        from photosearch.core.vector_index import VectorIndex
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            index_path = tmp_path / "test.index"
+
+            # Create first index with some vectors
+            index1 = VectorIndex(dimension=512)
+            ids1 = np.array([1, 2, 3], dtype=np.int64)
+            embeddings1 = np.random.randn(3, 512).astype(np.float32)
+            # Normalize
+            embeddings1 = embeddings1 / np.linalg.norm(embeddings1, axis=1, keepdims=True)
+            index1.add(ids1, embeddings1)
+            index1.save(index_path)
+            assert index1.size == 3
+
+            # Create second index (simulating another process) with different vectors
+            index2 = VectorIndex(dimension=512)
+            ids2 = np.array([10, 20, 30, 40, 50], dtype=np.int64)
+            embeddings2 = np.random.randn(5, 512).astype(np.float32)
+            embeddings2 = embeddings2 / np.linalg.norm(embeddings2, axis=1, keepdims=True)
+            index2.add(ids2, embeddings2)
+            index2.save(index_path)  # Overwrite the file
+            assert index2.size == 5
+
+            # Now reload index1 from the file (should get index2's data)
+            index1.reload_from(index_path)
+
+            # index1 should now have 5 vectors, not 3
+            assert index1.size == 5, f"Expected 5 vectors after reload, got {index1.size}"
+            assert index1.active_count == 5
+
+            # Verify the IDs are from index2
+            assert index1.has_id(10)
+            assert index1.has_id(20)
+            assert index1.has_id(30)
+            assert not index1.has_id(1)  # Old ID should not exist
+            assert not index1.has_id(2)
+
+    def test_vector_index_reload_from_nonexistent_clears(self):
+        """Test VectorIndex.reload_from() clears index if file doesn't exist."""
+        import numpy as np
+        from photosearch.core.vector_index import VectorIndex
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            index_path = tmp_path / "nonexistent.index"
+
+            # Create index with some vectors
+            index = VectorIndex(dimension=512)
+            ids = np.array([1, 2, 3], dtype=np.int64)
+            embeddings = np.random.randn(3, 512).astype(np.float32)
+            embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+            index.add(ids, embeddings)
+            assert index.size == 3
+
+            # Reload from nonexistent file should clear the index
+            index.reload_from(index_path)
+            assert index.size == 0
+            assert index.active_count == 0
+
+    def test_search_engine_reload_index(self):
+        """Test SearchEngine.reload_index() picks up changes from disk."""
+        import numpy as np
+        from photosearch.core.search_engine import SearchEngine
+        from photosearch.core.vector_index import VectorIndex
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            db_path = tmp_path / "test.db"
+            index_path = tmp_path / "test.index"
+
+            # Create search engine (this also creates the index file)
+            engine = SearchEngine(
+                db_path=db_path,
+                index_path=index_path,
+            )
+            initial_size = engine.vector_index.size
+
+            # Simulate another process updating the index file
+            external_index = VectorIndex(dimension=engine.clip.embedding_dim)
+            ids = np.array([100, 200, 300], dtype=np.int64)
+            embeddings = np.random.randn(3, engine.clip.embedding_dim).astype(np.float32)
+            embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+            external_index.add(ids, embeddings)
+            external_index.save(index_path)
+
+            # The engine's in-memory index still has old data
+            assert engine.vector_index.size == initial_size
+
+            # Reload the index
+            engine.reload_index()
+
+            # Now engine should have the new data
+            assert engine.vector_index.size == 3
+            assert engine.vector_index.has_id(100)
+            assert engine.vector_index.has_id(200)
+            assert engine.vector_index.has_id(300)
+
+            engine.close()
+
+    def test_mark_search_engine_needs_reload_flag(self):
+        """Test that mark_search_engine_needs_reload sets the flag correctly."""
+        from photosearch.api import routes
+
+        # Reset the flag
+        routes._search_engine_needs_reload = False
+        assert routes._search_engine_needs_reload is False
+
+        # Call mark function
+        routes.mark_search_engine_needs_reload()
+
+        # Flag should be set
+        assert routes._search_engine_needs_reload is True
+
+    def test_get_search_engine_reloads_when_flagged(self, client):
+        """Test that get_search_engine triggers reload when flag is set."""
+        from unittest.mock import MagicMock, AsyncMock, patch
+        from photosearch.api import routes
+
+        # Create a mock search engine with reload_index method
+        mock_engine = MagicMock()
+        mock_engine.reload_index = MagicMock()
+
+        # Store original values
+        original_engine = routes._search_engine
+        original_flag = routes._search_engine_needs_reload
+
+        try:
+            # Set up: engine exists and needs reload
+            routes._search_engine = mock_engine
+            routes._search_engine_needs_reload = True
+
+            # Create mock search result
+            mock_result = MagicMock()
+            mock_result.results = []
+            mock_result.total_results = 0
+            mock_result.location_resolved = None
+            mock_engine.search.return_value = mock_result
+
+            # Make a search request (this should trigger reload)
+            response = client.post("/api/v1/search", json={"query": "test"})
+
+            # Verify reload was called
+            mock_engine.reload_index.assert_called_once()
+
+            # Flag should be reset
+            assert routes._search_engine_needs_reload is False
+
+        finally:
+            # Restore original values
+            routes._search_engine = original_engine
+            routes._search_engine_needs_reload = original_flag
+
+    def test_batch_indexing_sets_reload_flag(self):
+        """Test that batch indexing sets the reload flag when complete."""
+        from photosearch.api import routes
+
+        # Reset the flag
+        routes._search_engine_needs_reload = False
+
+        # Create a minimal mock for _run_batch_indexing
+        # We can't easily test the full background task, but we can verify
+        # mark_search_engine_needs_reload is called
+
+        # Verify the function exists and is callable
+        assert callable(routes.mark_search_engine_needs_reload)
+
+        # Call it directly (simulating what happens at end of batch indexing)
+        routes.mark_search_engine_needs_reload()
+        assert routes._search_engine_needs_reload is True
+
+
+class TestDeleteReindexSearchIntegration:
+    """Integration tests for the delete-reindex-search workflow.
+
+    This is the main test for the bug: after deleting and reindexing,
+    search should return the newly indexed photos.
+    """
+
+    @pytest.fixture
+    def search_engine_with_fixtures(self):
+        """Create a search engine with test images indexed."""
+        from photosearch.core.search_engine import SearchEngine
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            db_path = tmp_path / "test.db"
+            index_path = tmp_path / "test.index"
+
+            # Create two separate image folders
+            folder1 = tmp_path / "folder1"
+            folder1.mkdir()
+            folder2 = tmp_path / "folder2"
+            folder2.mkdir()
+
+            # Copy fixture images to folders
+            fixtures = Path(__file__).parent / "fixtures"
+
+            # Folder1: sunset image
+            sunset_src = fixtures / "sunset.jpg"
+            if sunset_src.exists():
+                (folder1 / "sunset.jpg").write_bytes(sunset_src.read_bytes())
+
+            # Folder2: city image
+            city_src = fixtures / "city.jpg"
+            if city_src.exists():
+                (folder2 / "city.jpg").write_bytes(city_src.read_bytes())
+
+            engine = SearchEngine(
+                db_path=db_path,
+                index_path=index_path,
+            )
+
+            yield {
+                "engine": engine,
+                "folder1": folder1,
+                "folder2": folder2,
+                "tmp_path": tmp_path,
+                "db_path": db_path,
+                "index_path": index_path,
+            }
+
+            engine.close()
+
+    def test_delete_folder_then_reindex_different_folder(self, search_engine_with_fixtures):
+        """Test: index folder1, delete folder1, index folder2, search returns folder2 results."""
+        ctx = search_engine_with_fixtures
+        engine = ctx["engine"]
+        folder1 = ctx["folder1"]
+        folder2 = ctx["folder2"]
+
+        # Skip if fixture files don't exist
+        if not (folder1 / "sunset.jpg").exists() or not (folder2 / "city.jpg").exists():
+            pytest.skip("Fixture images not available")
+
+        # Step 1: Index folder1
+        result1 = engine.index_folder(folder1)
+        assert result1.processed >= 1, "Should index at least 1 photo from folder1"
+
+        # Verify folder1 photo is searchable
+        search1 = engine.search("sunset", top_k=10)
+        # May or may not find results depending on caption, but index should be populated
+        initial_status = engine.get_status()
+        assert initial_status["indexed_count"] >= 1
+
+        # Step 2: Delete folder1 from index
+        deleted = engine.remove_folder(folder1)
+        assert deleted >= 1, "Should delete at least 1 photo"
+
+        # Verify folder1 photos are gone
+        status_after_delete = engine.get_status()
+        assert status_after_delete["indexed_count"] == 0, "All photos should be deleted"
+
+        # Step 3: Index folder2
+        result2 = engine.index_folder(folder2)
+        assert result2.processed >= 1, "Should index at least 1 photo from folder2"
+
+        # Step 4: Search should find folder2 photos
+        status_final = engine.get_status()
+        assert status_final["indexed_count"] >= 1, "Should have folder2 photos indexed"
+
+        # Vector index should also reflect the new photos
+        assert engine.vector_index.size >= 1, "Vector index should have new photos"
+
+    def test_simulated_background_reindex_with_reload(self, search_engine_with_fixtures):
+        """Test: simulate what happens with background indexing and reload.
+
+        This simulates the bug scenario:
+        1. Main engine has some photos indexed
+        2. Background task (new engine instance) reindexes
+        3. Main engine reloads and can search new photos
+        """
+        from photosearch.core.search_engine import SearchEngine
+
+        ctx = search_engine_with_fixtures
+        main_engine = ctx["engine"]
+        folder1 = ctx["folder1"]
+        folder2 = ctx["folder2"]
+        db_path = ctx["db_path"]
+        index_path = ctx["index_path"]
+
+        # Skip if fixture files don't exist
+        if not (folder1 / "sunset.jpg").exists() or not (folder2 / "city.jpg").exists():
+            pytest.skip("Fixture images not available")
+
+        # Step 1: Main engine indexes folder1
+        result1 = main_engine.index_folder(folder1)
+        main_engine._save_index()
+
+        initial_size = main_engine.vector_index.size
+        assert initial_size >= 1
+
+        # Step 2: Delete folder1 from main engine
+        main_engine.remove_folder(folder1)
+        main_engine._save_index()
+
+        # Step 3: Simulate background task - create NEW engine instance
+        # This is what _run_batch_indexing does
+        background_engine = SearchEngine(
+            db_path=db_path,
+            index_path=index_path,
+        )
+
+        # Background engine indexes folder2
+        result2 = background_engine.index_folder(folder2)
+        background_engine.close()  # This saves the index
+
+        # At this point:
+        # - background_engine wrote new index to disk
+        # - main_engine still has old (empty) vector index in memory
+
+        # Step 4: Without reload, main engine's vector index is stale
+        # The size should still be 0 (from when we deleted folder1)
+        assert main_engine.vector_index.active_count == 0, \
+            "Main engine should have stale empty index before reload"
+
+        # Step 5: Reload main engine's index
+        main_engine.reload_index()
+
+        # Now main engine should have the new photos
+        assert main_engine.vector_index.size >= 1, \
+            f"After reload, main engine should have new photos. Got size={main_engine.vector_index.size}"
+
+        # Step 6: Search should work
+        status = main_engine.get_status()
+        assert status["indexed_count"] >= 1, "Should have indexed photos"

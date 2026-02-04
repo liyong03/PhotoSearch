@@ -33,11 +33,12 @@ def get_db() -> Database:
 # Lazy-loaded search engine (expensive to initialize)
 _search_engine = None
 _search_engine_lock = asyncio.Lock()
+_search_engine_needs_reload = False
 
 
 async def get_search_engine():
     """Get or create search engine instance (lazy initialization)."""
-    global _search_engine
+    global _search_engine, _search_engine_needs_reload
     if _search_engine is None:
         async with _search_engine_lock:
             if _search_engine is None:
@@ -49,7 +50,25 @@ async def get_search_engine():
                     device=settings.device,
                 )
                 logger.info("Search engine initialized")
+                _search_engine_needs_reload = False
+    elif _search_engine_needs_reload:
+        async with _search_engine_lock:
+            if _search_engine_needs_reload:
+                logger.info("Reloading search engine index after background update...")
+                _search_engine.reload_index()
+                _search_engine_needs_reload = False
     return _search_engine
+
+
+def mark_search_engine_needs_reload():
+    """Mark that the search engine needs to reload its index.
+
+    This should be called after background indexing tasks complete
+    to ensure the main search engine picks up the new index data.
+    """
+    global _search_engine_needs_reload
+    _search_engine_needs_reload = True
+    logger.info("Search engine marked for reload")
 
 
 # =============================================================================
@@ -367,6 +386,9 @@ def _run_batch_indexing(task_id: str, folder_path: Path, recursive: bool):
 
         search_engine.close()
 
+        # Mark main search engine for reload so it picks up the new index
+        mark_search_engine_needs_reload()
+
     except Exception as e:
         logger.error(f"Batch indexing failed: {e}")
         _indexing_tasks[task_id] = IndexProgressResponse(
@@ -448,6 +470,55 @@ async def get_index_status(task_id: str) -> IndexProgressResponse:
         raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
 
     return _indexing_tasks[task_id]
+
+
+class DeleteFolderRequest(BaseModel):
+    """Request model for deleting a folder from the index."""
+
+    folder_path: str = Field(..., description="Path to the folder to remove")
+
+
+class DeleteFolderResponse(BaseModel):
+    """Response model for delete folder operation."""
+
+    success: bool
+    message: str
+    deleted_count: int
+
+
+# NOTE: This route MUST be defined BEFORE /index/{photo_id} to avoid "folder" being matched as a photo_id
+@router.delete("/index/folder", response_model=DeleteFolderResponse)
+async def delete_folder(request: DeleteFolderRequest) -> DeleteFolderResponse:
+    """
+    Remove all photos in a folder from the index.
+
+    - **folder_path**: Path to the folder to remove from index
+
+    This removes all indexed photos whose file paths start with the given folder path.
+    """
+    from pathlib import Path
+
+    folder_path = Path(request.folder_path)
+
+    if not folder_path.exists():
+        # Still allow deletion even if folder doesn't exist (photos might still be indexed)
+        pass
+
+    search_engine = await get_search_engine()
+    deleted_count = search_engine.remove_folder(request.folder_path)
+
+    if deleted_count == 0:
+        return DeleteFolderResponse(
+            success=True,
+            message=f"No indexed photos found in folder: {request.folder_path}",
+            deleted_count=0,
+        )
+
+    return DeleteFolderResponse(
+        success=True,
+        message=f"Removed {deleted_count} photos from index",
+        deleted_count=deleted_count,
+    )
 
 
 @router.delete("/index/{photo_id}", response_model=DeleteResponse)
