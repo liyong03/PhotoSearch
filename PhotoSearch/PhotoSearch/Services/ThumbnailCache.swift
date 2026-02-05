@@ -47,6 +47,83 @@ final class ThumbnailCache: ObservableObject {
         return nil
     }
 
+    /// Get a cached thumbnail synchronously without triggering a load.
+    /// - Parameter cacheKey: The cache key string.
+    /// - Returns: Cached thumbnail or nil.
+    func getCachedThumbnail(forKey cacheKey: String) -> NSImage? {
+        return cache.object(forKey: cacheKey as NSString)
+    }
+
+    /// Load a thumbnail in background (can be called from any thread).
+    /// - Parameters:
+    ///   - path: File path to the image.
+    ///   - size: Desired thumbnail size.
+    /// - Returns: Thumbnail image.
+    nonisolated func loadThumbnailInBackground(path: String, size: CGSize? = nil) async -> NSImage? {
+        let targetSize = size ?? CGSize(width: 300, height: 300)
+        let cacheKey = "\(path)_\(Int(targetSize.width))x\(Int(targetSize.height))"
+
+        // Check cache on main actor
+        if let cached = await MainActor.run(body: { self.cache.object(forKey: cacheKey as NSString) }) {
+            return cached
+        }
+
+        // Generate thumbnail (heavy work, runs on current background thread)
+        guard let thumbnail = generateThumbnailSync(path: path, size: targetSize) else {
+            return nil
+        }
+
+        // Cache on main actor
+        await MainActor.run {
+            self.cache.setObject(thumbnail, forKey: cacheKey as NSString)
+        }
+
+        return thumbnail
+    }
+
+    /// Synchronous thumbnail generation (for use on background threads).
+    private nonisolated func generateThumbnailSync(path: String, size: CGSize) -> NSImage? {
+        let url = URL(fileURLWithPath: path)
+
+        // Try CGImageSource first (most efficient)
+        if let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil) {
+            let maxDimension = max(size.width, size.height) * 2 // Retina
+
+            let options: [CFString: Any] = [
+                kCGImageSourceThumbnailMaxPixelSize: maxDimension,
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true
+            ]
+
+            if let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) {
+                return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+            }
+        }
+
+        // Fallback to NSImage
+        guard let image = NSImage(contentsOf: url) else {
+            return nil
+        }
+
+        let ratio = min(size.width / image.size.width, size.height / image.size.height)
+        let newSize = CGSize(
+            width: image.size.width * ratio,
+            height: image.size.height * ratio
+        )
+
+        let thumbnail = NSImage(size: newSize)
+        thumbnail.lockFocus()
+        image.draw(
+            in: NSRect(origin: .zero, size: newSize),
+            from: NSRect(origin: .zero, size: image.size),
+            operation: .copy,
+            fraction: 1.0
+        )
+        thumbnail.unlockFocus()
+
+        return thumbnail
+    }
+
     /// Asynchronously load a thumbnail.
     /// - Parameters:
     ///   - path: File path to the image.
@@ -183,6 +260,7 @@ class ThumbnailLoader: ObservableObject {
     @Published var isLoading: Bool = false
 
     private var loadedPath: String?
+    private var loadTask: Task<Void, Never>?
 
     func load(from path: String, size: CGSize? = nil) {
         // Don't reload if already loaded for this path
@@ -190,24 +268,38 @@ class ThumbnailLoader: ObservableObject {
             return
         }
 
+        // Cancel any existing load task
+        loadTask?.cancel()
         loadedPath = path
 
-        // Check cache first
-        if let cached = ThumbnailCache.shared.thumbnail(for: path, size: size) {
+        // Check cache first (synchronous, on main thread)
+        let targetSize = size ?? CGSize(width: 300, height: 300)
+        let cacheKey = "\(path)_\(Int(targetSize.width))x\(Int(targetSize.height))"
+        if let cached = ThumbnailCache.shared.getCachedThumbnail(forKey: cacheKey) {
             self.image = cached
             return
         }
 
-        // Load asynchronously
+        // Load asynchronously on background thread
         isLoading = true
-        Task {
-            let thumbnail = await ThumbnailCache.shared.loadThumbnail(path: path, size: size)
+        loadTask = Task {
+            // Run heavy image loading on background thread
+            let thumbnail = await Task.detached(priority: .utility) {
+                await ThumbnailCache.shared.loadThumbnailInBackground(path: path, size: size)
+            }.value
+
+            // Check if task was cancelled or path changed
+            guard !Task.isCancelled, self.loadedPath == path else { return }
+
+            // Update UI on main thread (automatic since class is @MainActor)
             self.image = thumbnail
             self.isLoading = false
         }
     }
 
     func cancel() {
+        loadTask?.cancel()
+        loadTask = nil
         loadedPath = nil
     }
 }
