@@ -52,53 +52,54 @@ def _ensure_wordnet():
 # Each group contains words that should all match each other
 # The lookup table is built automatically so any word in a group can find all others
 _SYNONYM_GROUPS = [
-    # People - age groups
-    ["kid", "kids", "child", "children", "boy", "girl", "toddler", "youngster", "youth"],
-    ["baby", "babies", "infant", "infants", "newborn", "newborns", "toddler", "toddlers"],
+    # People - age groups (with all plural forms)
+    ["kid", "kids", "child", "children", "boy", "boys", "girl", "girls", "toddler", "toddlers", "youngster", "youngsters", "youth", "youths"],
+    ["baby", "babies", "infant", "infants", "newborn", "newborns"],
     ["man", "men", "male", "males", "guy", "guys", "gentleman", "gentlemen"],
     ["woman", "women", "female", "females", "lady", "ladies"],
     ["people", "person", "persons", "crowd", "crowds", "group", "groups", "humans", "individuals", "folks"],
-    ["family", "families", "relatives", "parents", "household"],
+    ["family", "families", "relatives", "parents", "household", "households"],
 
-    # Animals - specific types (bidirectional)
+    # Animals - specific types (with plurals)
     ["dog", "dogs", "puppy", "puppies", "canine", "canines", "hound", "hounds", "pup", "pups", "doggy", "pooch"],
     ["cat", "cats", "kitten", "kittens", "feline", "felines", "kitty", "kitties", "tabby"],
-    ["bird", "birds", "avian", "fowl", "parrot", "sparrow", "eagle", "owl", "duck", "goose", "penguin"],
+    ["bird", "birds", "avian", "fowl"],
     ["fish", "fishes", "goldfish", "salmon", "tuna", "trout"],
     ["horse", "horses", "pony", "ponies", "stallion", "mare", "foal", "equine"],
     ["otter", "otters"],
     ["rabbit", "rabbits", "bunny", "bunnies"],
-    ["bear", "bears", "grizzly", "polar bear"],
-    ["lion", "lions", "lioness"],
+    ["bear", "bears", "grizzly", "grizzlies"],
+    ["lion", "lions", "lioness", "lionesses"],
     ["tiger", "tigers"],
     ["elephant", "elephants"],
-    ["deer", "deers", "doe", "buck", "fawn"],
+    ["deer", "doe", "buck", "fawn", "fawns"],
     ["wolf", "wolves"],
     ["fox", "foxes"],
-    ["monkey", "monkeys", "ape", "apes", "gorilla", "gorillas", "chimpanzee"],
+    ["monkey", "monkeys", "ape", "apes", "gorilla", "gorillas", "chimpanzee", "chimpanzees"],
     ["dolphin", "dolphins"],
     ["whale", "whales"],
-    ["snake", "snakes", "serpent"],
-    ["turtle", "turtles", "tortoise"],
+    ["snake", "snakes", "serpent", "serpents"],
+    ["turtle", "turtles", "tortoise", "tortoises"],
     ["frog", "frogs", "toad", "toads"],
     ["butterfly", "butterflies"],
     ["bee", "bees"],
     ["spider", "spiders"],
 
-    # Nature - landscapes
+    # Nature - landscapes (MERGED related concepts)
     ["sunset", "sunsets", "sunrise", "sunrises", "dusk", "dawn", "twilight"],
-    ["beach", "beaches", "shore", "shores", "coast", "coastline", "seaside", "oceanfront", "seashore"],
+    ["beach", "beaches", "shore", "shores", "coast", "coasts", "coastline", "coastlines", "seaside", "oceanfront", "seashore"],
     ["mountain", "mountains", "hill", "hills", "peak", "peaks", "summit", "summits", "alpine", "highlands"],
-    ["forest", "forests", "woods", "woodland", "woodlands", "jungle", "rainforest"],
+    # MERGED: tree + forest (users searching "tree" often want forest photos)
+    ["tree", "trees", "forest", "forests", "woods", "woodland", "woodlands", "jungle", "rainforest", "oak", "pine", "palm"],
     ["river", "rivers", "stream", "streams", "creek", "creeks", "brook", "brooks"],
     ["lake", "lakes", "pond", "ponds", "reservoir", "reservoirs"],
-    ["ocean", "oceans", "sea", "seas", "marine", "maritime"],
+    # MERGED: ocean + beach (users searching "ocean" often want beach photos)  
+    ["ocean", "oceans", "sea", "seas", "marine", "maritime", "beach", "beaches", "shore", "shores", "coast", "coastline", "seaside"],
     ["water", "waters", "aquatic"],
-    ["sky", "skies", "clouds", "cloudy", "heavens"],
+    ["sky", "skies", "cloud", "clouds", "cloudy", "heavens"],
     ["flower", "flowers", "floral", "bloom", "blooms", "blossom", "blossoms", "petal", "petals"],
-    ["tree", "trees", "oak", "pine", "palm"],
-    ["garden", "gardens", "yard", "backyard", "lawn", "lawns"],
-    ["park", "parks", "green", "outdoor", "outdoors"],
+    ["garden", "gardens", "yard", "yards", "backyard", "backyards", "lawn", "lawns"],
+    ["park", "parks", "outdoor", "outdoors"],
     ["grass", "grassy", "meadow", "meadows", "field", "fields"],
 
     # Weather
@@ -310,22 +311,59 @@ WORDNET_BLACKLIST = {
 }
 
 
+def _get_plural_variants(word: str) -> set[str]:
+    """Generate simple plural/singular variants of a word.
+    
+    This catches cases not explicitly listed in synonym groups.
+    """
+    word = word.lower()
+    variants = {word}
+    
+    # Add plural forms
+    if not word.endswith('s'):
+        variants.add(word + 's')
+        # -y -> -ies (baby -> babies), but not for vowel+y
+        if word.endswith('y') and len(word) > 2 and word[-2] not in 'aeiou':
+            variants.add(word[:-1] + 'ies')
+        # -ch, -sh, -x, -z -> -es
+        elif word.endswith(('ch', 'sh', 'x', 'z')):
+            variants.add(word + 'es')
+    
+    # Add singular forms
+    if word.endswith('ies') and len(word) > 4:
+        variants.add(word[:-3] + 'y')  # babies -> baby
+    elif word.endswith('es') and len(word) > 3:
+        if word[:-2].endswith(('ch', 'sh', 'x', 'z')):
+            variants.add(word[:-2])  # beaches -> beach
+        else:
+            variants.add(word[:-1])  # horses -> horse
+    elif word.endswith('s') and len(word) > 2 and not word.endswith('ss'):
+        variants.add(word[:-1])  # dogs -> dog
+    
+    return variants
+
+
 @lru_cache(maxsize=10000)
 def get_synonyms(word: str) -> set[str]:
-    """Get synonyms for a word using WordNet and manual expansions.
+    """Get synonyms for a word using manual expansions and plural variants.
 
     Args:
         word: The word to find synonyms for.
 
     Returns:
-        Set of synonyms including the original word.
+        Set of synonyms including the original word and variants.
     """
     word = word.lower().strip()
-    synonyms = {word}
-
-    # First check manual expansions (domain-specific, high quality)
-    if word in MANUAL_EXPANSIONS:
-        synonyms.update(MANUAL_EXPANSIONS[word])
+    synonyms = set()
+    
+    # Start with plural/singular variants
+    variants = _get_plural_variants(word)
+    synonyms.update(variants)
+    
+    # Check manual expansions for all variants
+    for variant in variants:
+        if variant in MANUAL_EXPANSIONS:
+            synonyms.update(MANUAL_EXPANSIONS[variant])
 
     # Then try WordNet for broader coverage (but filter out noise)
     if _ensure_wordnet() and _wordnet is not None:

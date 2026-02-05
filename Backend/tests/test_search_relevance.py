@@ -286,3 +286,37 @@ class TestLexicalMatching:
             ) is True
 
             engine.close()
+
+    def test_plural_matching(self):
+        """Test singular/plural matching."""
+        from photosearch.core.synonym_service import check_match
+
+        # Singular query should match plural in text
+        assert check_match("girl", "two girls playing", []) is True
+        assert check_match("dog", "three dogs running", []) is True
+        assert check_match("tree", "tall trees in the park", []) is True
+
+        # Plural query should match singular in text
+        assert check_match("girls", "a girl running", []) is True
+        assert check_match("dogs", "a dog playing", []) is True
+
+    def test_semantic_groups(self):
+        """Test that semantically related words match."""
+        from photosearch.core.synonym_service import check_match
+
+        # tree <-> forest (merged group)
+        assert check_match("tree", "a beautiful forest", []) is True
+        assert check_match("forest", "tall trees standing", []) is True
+
+        # ocean <-> beach (merged group)
+        assert check_match("ocean", "sandy beach view", []) is True
+        assert check_match("beach", "the ocean waves", []) is True
+
+    def test_no_false_positives(self):
+        """Test that unrelated words don't match."""
+        from photosearch.core.synonym_service import check_match
+
+        assert check_match("food", "a small white house", []) is False
+        assert check_match("animal", "food containers on table", []) is False
+        assert check_match("car", "a cat sleeping", []) is False
+        assert check_match("water", "a purple flower", []) is False
