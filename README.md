@@ -20,7 +20,7 @@ SwiftUI frontend + Python backend (FastAPI + FAISS + PyTorch)
 │   SwiftUI macOS App     │
 │   (Search UI, Grid)     │
 └───────────┬─────────────┘
-            │ HTTP localhost:8765
+            │ HTTP localhost:52849
 ┌───────────▼─────────────┐
 │   Python Backend        │
 │   FastAPI + CLIP + FAISS│
@@ -66,7 +66,7 @@ open PhotoSearch.xcodeproj
 ```bash
 cd Backend
 source venv/bin/activate
-uvicorn photosearch.main:app --port 8765 --reload
+uvicorn photosearch.main:app --port 52849 --reload
 ```
 
 ## Usage
@@ -131,9 +131,9 @@ PhotoSearch/
 
 ## API Endpoints
 
-The Python backend exposes a REST API at `http://localhost:8765/api/v1`.
+The Python backend exposes a REST API at `http://localhost:52849/api/v1`.
 
-Interactive API documentation is available at `http://localhost:8765/docs` when the backend is running.
+Interactive API documentation is available at `http://localhost:52849/docs` when the backend is running.
 
 ### Core Endpoints
 
@@ -169,7 +169,7 @@ Interactive API documentation is available at `http://localhost:8765/docs` when 
 ### Example: Search Request
 
 ```bash
-curl -X POST http://localhost:8765/api/v1/search \
+curl -X POST http://localhost:52849/api/v1/search \
   -H "Content-Type: application/json" \
   -d '{
     "query": "sunset on beach",
@@ -177,6 +177,66 @@ curl -X POST http://localhost:8765/api/v1/search \
     "location": "Hawaii"
   }'
 ```
+
+## Building a Standalone App
+
+You can build a fully self-contained PhotoSearch.app that includes the Python backend:
+
+### Quick Build
+
+```bash
+./scripts/build_app.sh
+```
+
+This will:
+1. Build the Python backend with PyInstaller
+2. Build the macOS app with Xcode
+3. Embed the backend in the app bundle
+
+### Manual Build Steps
+
+#### 1. Build the Python Backend
+
+```bash
+cd Backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install pyinstaller
+
+# Build standalone executable
+pyinstaller --clean photosearch.spec
+```
+
+This creates `Backend/dist/photosearch-backend/` containing the standalone backend.
+
+#### 2. Build the macOS App
+
+```bash
+cd PhotoSearch
+xcodebuild -project PhotoSearch.xcodeproj -scheme PhotoSearch -configuration Release build
+```
+
+#### 3. Embed Backend in App Bundle
+
+```bash
+# Find the built app (usually in DerivedData)
+APP_PATH="path/to/PhotoSearch.app"
+
+# Copy backend into Resources
+mkdir -p "$APP_PATH/Contents/Resources/Backend"
+cp -R Backend/dist/photosearch-backend/* "$APP_PATH/Contents/Resources/Backend/"
+```
+
+### How It Works
+
+When the app launches:
+1. `BackendManager` looks for the embedded backend in `Contents/Resources/Backend/`
+2. If found, it launches the backend as a subprocess
+3. The backend runs on `localhost:52849`
+4. When the app quits, the backend is automatically stopped
+
+For development, if no embedded backend is found, it will look for a Python virtual environment in the `Backend/` directory and run from source.
 
 ## Development
 
@@ -200,7 +260,7 @@ xcodebuild test -project PhotoSearch.xcodeproj -scheme PhotoSearch
 ```bash
 cd Backend
 source venv/bin/activate
-uvicorn photosearch.main:app --port 8765 --reload
+uvicorn photosearch.main:app --port 52849 --reload
 ```
 
 ### Test Coverage
@@ -238,7 +298,7 @@ rm -rf ~/Library/Application\ Support/PhotoSearch/
 # 3. Restart the backend
 cd Backend
 source venv/bin/activate
-uvicorn photosearch.main:app --port 8765 --reload
+uvicorn photosearch.main:app --port 52849 --reload
 
 # 4. Re-add your photo folders in the app
 ```
@@ -249,22 +309,22 @@ You can also reindex using the API:
 
 ```bash
 # Delete all indexed photos and reindex a folder
-curl -X POST http://localhost:8765/api/v1/index/batch \
+curl -X POST http://localhost:52849/api/v1/index/batch \
   -H "Content-Type: application/json" \
   -d '{"folder_path": "/path/to/your/photos", "recursive": true}'
 
 # Check indexing progress
-curl http://localhost:8765/api/v1/index/status/{task_id}
+curl http://localhost:52849/api/v1/index/status/{task_id}
 ```
 
 ### View Indexed Photos
 
 ```bash
 # List all indexed photos
-curl http://localhost:8765/api/v1/photos?limit=100
+curl http://localhost:52849/api/v1/photos?limit=100
 
 # Get total count
-curl http://localhost:8765/api/v1/status
+curl http://localhost:52849/api/v1/status
 ```
 
 ## Privacy
@@ -286,16 +346,15 @@ curl http://localhost:8765/api/v1/status
 - [x] Query parsing for natural language
 - [x] Comprehensive test suite (100+ tests)
 
-### Frontend (Swift) - 🚧 In Progress
+### Frontend (Swift) - ✅ Complete
 - [x] Project structure and models
 - [x] API client
 - [x] Search UI with photo grid
-- [x] Thumbnail caching
-- [ ] Folder selection (NSOpenPanel)
-- [ ] Security-scoped bookmarks
-- [ ] Filter panel (date/location)
-- [ ] Photo detail view
-- [ ] Backend auto-start
+- [x] Thumbnail caching (background loading)
+- [x] Folder selection and browsing
+- [x] All Photos view
+- [x] Backend auto-start (embedded backend support)
+- [x] App icon
 
 ## License
 

@@ -27,6 +27,7 @@
 		F5PL1002A1B2C3D4E5F60002 /* PhotoLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */; };
 		F6IV1005A1B2C3D4E5F60005 /* IndexingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */; };
 		F6PD1006A1B2C3D4E5F60006 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */; };
+		F7BM1008A1B2C3D4E5F60008 /* BackendManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7BM2008A1B2C3D4E5F60008 /* BackendManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +65,7 @@
 		F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexingViewModel.swift; sourceTree = "<group>"; };
 		F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
 		F7IP2007A1B2C3D4E5F60007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F7BM2008A1B2C3D4E5F60008 /* BackendManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -162,6 +164,7 @@
 			children = (
 				A405DC0CD0895535524FA718 /* APIClient.swift */,
 				BA920C90867375C3C5BADE2C /* APIModels.swift */,
+				F7BM2008A1B2C3D4E5F60008 /* BackendManager.swift */,
 				F5BK2001A1B2C3D4E5F60001 /* BookmarkManager.swift */,
 				F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */,
 				2E459568FE4234F1CE4E5DCF /* ThumbnailCache.swift */,
@@ -261,6 +264,7 @@
 				5A3E9955111CC951820F5A49 /* APIClient.swift in Sources */,
 				4F21AC0E5D6B0E114828CC0C /* APIModels.swift in Sources */,
 				24A8722191C5B26ED6733BDA /* AppState.swift in Sources */,
+				F7BM1008A1B2C3D4E5F60008 /* BackendManager.swift in Sources */,
 				F5BK1001A1B2C3D4E5F60001 /* BookmarkManager.swift in Sources */,
 				0D0196024D5B8FF22C75F400 /* ContentView.swift in Sources */,
 				F5FP1004A1B2C3D4E5F60004 /* FilterPanel.swift in Sources */,

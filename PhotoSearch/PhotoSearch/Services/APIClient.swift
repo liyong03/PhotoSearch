@@ -37,7 +37,7 @@ actor APIClient: APIClientProtocol {
 
     // MARK: - Initialization
 
-    init(baseURL: String = "http://localhost:8765/api/v1", timeoutInterval: TimeInterval = 30) {
+    init(baseURL: String = "http://localhost:52849/api/v1", timeoutInterval: TimeInterval = 30) {
         self.baseURL = URL(string: baseURL)!
         self.timeoutInterval = timeoutInterval
 
