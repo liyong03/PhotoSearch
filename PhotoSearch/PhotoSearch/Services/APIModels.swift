@@ -30,14 +30,16 @@ struct SearchRequest: Codable, Equatable {
     let topK: Int
     let timeRange: TimeRange?
     let location: String?
+    let folderPath: String?
     let minScore: Double
     let captionWeight: Double
 
     init(
-        query: String,
+        query: String = "",
         topK: Int = 20,
         timeRange: TimeRange? = nil,
         location: String? = nil,
+        folderPath: String? = nil,
         minScore: Double = 0.15,
         captionWeight: Double = 0.5
     ) {
@@ -45,6 +47,7 @@ struct SearchRequest: Codable, Equatable {
         self.topK = topK
         self.timeRange = timeRange
         self.location = location
+        self.folderPath = folderPath
         self.minScore = minScore
         self.captionWeight = captionWeight
     }
@@ -54,6 +57,7 @@ struct SearchRequest: Codable, Equatable {
         case topK = "top_k"
         case timeRange = "time_range"
         case location
+        case folderPath = "folder_path"
         case minScore = "min_score"
         case captionWeight = "caption_weight"
     }

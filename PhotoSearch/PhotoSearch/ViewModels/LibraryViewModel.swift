@@ -39,7 +39,7 @@ class LibraryViewModel: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// Add a new folder to the library.
+    /// Add a new folder to the library and start indexing.
     func addFolder() async {
         guard let url = await photoLoader.requestFolderAccess() else {
             return
@@ -70,6 +70,15 @@ class LibraryViewModel: ObservableObject {
 
             // Select the newly added folder
             selectedFolder = folderInfo
+
+            // Automatically start indexing the new folder
+            do {
+                _ = try await indexFolder(folderInfo)
+            } catch {
+                // Don't fail the add operation if indexing fails
+                // The user can manually trigger indexing later via context menu
+                print("Auto-indexing failed: \(error.localizedDescription)")
+            }
 
         } catch {
             errorMessage = "Failed to save folder: \(error.localizedDescription)"

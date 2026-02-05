@@ -3,15 +3,29 @@ import SwiftUI
 /// Sidebar navigation view.
 struct SidebarView: View {
     @Binding var selection: SidebarItem?
+    @Binding var selectedFolder: FolderInfo?
     @EnvironmentObject var appState: AppState
     @ObservedObject var libraryViewModel: LibraryViewModel
+    var onFolderSelected: ((FolderInfo) -> Void)?
 
     var body: some View {
-        List(selection: $selection) {
+        List {
             Section("Library") {
                 ForEach(SidebarItem.allCases) { item in
-                    Label(item.rawValue, systemImage: item.icon)
-                        .tag(item)
+                    HStack {
+                        Label(item.rawValue, systemImage: item.icon)
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                    .listRowBackground(
+                        selection == item && selectedFolder == nil
+                            ? Color.accentColor.opacity(0.2)
+                            : Color.clear
+                    )
+                    .onTapGesture {
+                        selection = item
+                        selectedFolder = nil
+                    }
                 }
             }
 
@@ -23,6 +37,17 @@ struct SidebarView: View {
                 } else {
                     ForEach(libraryViewModel.folders) { folder in
                         FolderRow(folder: folder, libraryViewModel: libraryViewModel)
+                            .contentShape(Rectangle())
+                            .listRowBackground(
+                                selectedFolder?.id == folder.id
+                                    ? Color.accentColor.opacity(0.2)
+                                    : Color.clear
+                            )
+                            .onTapGesture {
+                                selection = nil
+                                selectedFolder = folder
+                                onFolderSelected?(folder)
+                            }
                             .contextMenu {
                                 Button("Index Folder") {
                                     Task {
@@ -106,7 +131,11 @@ struct FolderRow: View {
 }
 
 #Preview {
-    SidebarView(selection: .constant(.allPhotos), libraryViewModel: LibraryViewModel())
-        .environmentObject(AppState())
-        .frame(width: 220)
+    SidebarView(
+        selection: .constant(.allPhotos),
+        selectedFolder: .constant(nil),
+        libraryViewModel: LibraryViewModel()
+    )
+    .environmentObject(AppState())
+    .frame(width: 220)
 }

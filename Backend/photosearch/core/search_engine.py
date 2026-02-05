@@ -372,6 +372,7 @@ class SearchEngine:
         top_k: int = 20,
         time_range: Optional[tuple[datetime, datetime]] = None,
         location: Optional[str] = None,
+        folder_path: Optional[str] = None,
         min_score: float = 0.15,
         caption_weight: float = 0.5,
     ) -> SearchResponse:
@@ -384,22 +385,27 @@ class SearchEngine:
         This ensures precision (only relevant photos) while using CLIP for ranking.
 
         Args:
-            query: Search query (can include location phrases).
+            query: Search query (can include location phrases). Empty string returns all.
             top_k: Maximum number of results to return.
             time_range: Optional (start, end) datetime tuple.
             location: Optional explicit location filter.
+            folder_path: Optional folder path filter (returns only photos in this folder).
             min_score: Minimum image similarity score threshold (0.0-1.0).
             caption_weight: Not used in current implementation (kept for API compatibility).
 
         Returns:
             SearchResponse with results.
         """
+        # Handle browse mode (empty query with folder filter)
+        if not query.strip() and folder_path:
+            return self._browse_folder(folder_path, top_k, time_range, location)
+
         # Parse query for embedded location
         parsed = self.query_parser.parse(query)
         semantic_query = parsed.semantic_query
         query_location = location or parsed.location
 
-        logger.info(f"Search: semantic='{semantic_query}', location='{query_location}'")
+        logger.info(f"Search: semantic='{semantic_query}', location='{query_location}', folder='{folder_path}'")
 
         # Resolve location to bounding box
         location_resolved = None
@@ -447,6 +453,11 @@ class SearchEngine:
                 if photo.latitude is None or photo.longitude is None:
                     continue
                 if not bbox.contains(photo.latitude, photo.longitude):
+                    continue
+
+            # Apply folder filter
+            if folder_path:
+                if not photo.path.startswith(folder_path):
                     continue
 
             # KEY FILTER: Lexical match required
@@ -497,6 +508,82 @@ class SearchEngine:
             results=results,
             total_results=len(results),
             location_resolved=location_resolved,
+        )
+
+    def _browse_folder(
+        self,
+        folder_path: str,
+        top_k: int = 20,
+        time_range: Optional[tuple[datetime, datetime]] = None,
+        location: Optional[str] = None,
+    ) -> SearchResponse:
+        """Browse photos in a folder without a search query.
+
+        Returns all photos in the folder, sorted by timestamp (newest first).
+
+        Args:
+            folder_path: Path to the folder to browse.
+            top_k: Maximum number of results to return.
+            time_range: Optional (start, end) datetime tuple.
+            location: Optional explicit location filter.
+
+        Returns:
+            SearchResponse with results.
+        """
+        logger.info(f"Browse folder: {folder_path}")
+
+        # Get all photos in the folder from database
+        photos = self.db.get_photos_by_folder(folder_path)
+
+        # Apply filters
+        filtered_photos = []
+        for photo in photos:
+            # Apply time filter
+            if time_range:
+                if photo.timestamp is None:
+                    continue
+                start, end = time_range
+                if not (start <= photo.timestamp <= end):
+                    continue
+
+            # Apply location filter
+            if location:
+                geocode_result = self.location_service.geocode(location)
+                if geocode_result and geocode_result.bounding_box:
+                    bbox = geocode_result.bounding_box
+                    if photo.latitude is None or photo.longitude is None:
+                        continue
+                    if not bbox.contains(photo.latitude, photo.longitude):
+                        continue
+
+            filtered_photos.append(photo)
+
+        # Sort by timestamp (newest first), then by path for consistent ordering
+        filtered_photos.sort(
+            key=lambda p: (p.timestamp or datetime.min, p.file_path),
+            reverse=True
+        )
+
+        # Take top_k results
+        results = []
+        for photo in filtered_photos[:top_k]:
+            results.append(SearchResult(
+                id=photo.id,
+                path=photo.file_path,
+                score=1.0,  # No relevance score for browse mode
+                description=photo.description,
+                timestamp=photo.timestamp,
+                city=photo.city,
+                state=photo.state,
+                country=photo.country,
+            ))
+
+        logger.info(f"Browse folder returned {len(results)} results")
+
+        return SearchResponse(
+            results=results,
+            total_results=len(filtered_photos),  # Total available, not just returned
+            location_resolved=None,
         )
 
     def remove_photo(self, photo_id: str) -> bool:

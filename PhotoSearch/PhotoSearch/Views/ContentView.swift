@@ -7,20 +7,31 @@ struct ContentView: View {
     @StateObject private var libraryViewModel = LibraryViewModel()
     @StateObject private var indexingViewModel = IndexingViewModel()
     @State private var selectedSidebarItem: SidebarItem? = .allPhotos
+    @State private var selectedFolder: FolderInfo?
     @State private var showFilters: Bool = false
     @State private var selectedPhotoForDetail: SearchResult?
     @State private var showIndexingComplete: Bool = false
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(selection: $selectedSidebarItem, libraryViewModel: libraryViewModel)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+            SidebarView(
+                selection: $selectedSidebarItem,
+                selectedFolder: $selectedFolder,
+                libraryViewModel: libraryViewModel,
+                onFolderSelected: { folder in
+                    Task {
+                        await searchViewModel.browseFolder(folder.path)
+                    }
+                }
+            )
+            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
         } detail: {
             VStack(spacing: 0) {
                 // Search bar
                 HStack {
                     SearchBar(text: $searchViewModel.searchQuery, onSubmit: {
                         Task {
+                            selectedFolder = nil
                             await searchViewModel.search()
                         }
                     })
@@ -53,11 +64,17 @@ struct ContentView: View {
                 } else if let error = searchViewModel.errorMessage {
                     SearchErrorView(message: error) {
                         Task {
-                            await searchViewModel.search()
+                            if let folder = selectedFolder {
+                                await searchViewModel.browseFolder(folder.path)
+                            } else {
+                                await searchViewModel.search()
+                            }
                         }
                     }
                 } else if searchViewModel.results.isEmpty && !searchViewModel.searchQuery.isEmpty {
                     NoResultsView(query: searchViewModel.searchQuery)
+                } else if searchViewModel.results.isEmpty && selectedFolder != nil {
+                    EmptyFolderView(folderName: selectedFolder?.name ?? "folder")
                 } else if searchViewModel.results.isEmpty {
                     EmptyLibraryView {
                         Task {
@@ -69,6 +86,7 @@ struct ContentView: View {
                         results: searchViewModel.results,
                         totalResults: searchViewModel.totalResults,
                         locationResolved: searchViewModel.locationResolved,
+                        folderName: selectedFolder?.name,
                         onPhotoSelected: { photo in
                             selectedPhotoForDetail = photo
                         }
@@ -137,6 +155,12 @@ struct ContentView: View {
             // Refresh the backend status to get updated photo count
             Task {
                 await appState.checkBackendStatus()
+            }
+        }
+        .onChange(of: selectedSidebarItem) { _, newItem in
+            // When a sidebar item is selected, exit folder browsing mode
+            if newItem != nil {
+                searchViewModel.exitFolderBrowsing()
             }
         }
     }
@@ -240,6 +264,23 @@ struct EmptyLibraryView: View {
     }
 }
 
+struct EmptyFolderView: View {
+    let folderName: String
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "folder")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+            Text("No Photos in Folder")
+                .font(.headline)
+            Text("The folder \"\(folderName)\" has no indexed photos.")
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 struct IndexingProgressView: View {
     let progress: Double
 
@@ -285,15 +326,22 @@ struct SearchResultsView: View {
     let results: [SearchResult]
     let totalResults: Int
     let locationResolved: LocationResolved?
+    var folderName: String?
     var onPhotoSelected: ((SearchResult) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
             // Results header
             HStack {
-                Text("\(totalResults) result\(totalResults == 1 ? "" : "s")")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                if let folderName = folderName {
+                    Text("\(totalResults) photo\(totalResults == 1 ? "" : "s") in \"\(folderName)\"")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("\(totalResults) result\(totalResults == 1 ? "" : "s")")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
 
                 if let location = locationResolved {
                     Spacer()

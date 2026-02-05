@@ -26,6 +26,9 @@ class SearchViewModel: ObservableObject {
     /// Location filter.
     @Published var locationFilter: String?
 
+    /// Current folder being browsed (nil for search mode).
+    @Published var currentFolderPath: String?
+
     /// Resolved location information from the last search.
     @Published var locationResolved: LocationResolved?
 
@@ -108,5 +111,57 @@ class SearchViewModel: ObservableObject {
         startDate = nil
         endDate = nil
         locationFilter = nil
+    }
+
+    /// Browse photos in a specific folder.
+    func browseFolder(_ folderPath: String) async {
+        // Cancel any existing search
+        searchTask?.cancel()
+
+        // Clear search query when browsing folders
+        searchQuery = ""
+        currentFolderPath = folderPath
+
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // Build time range if dates are set
+            var timeRange: TimeRange?
+            if let start = startDate, let end = endDate {
+                timeRange = TimeRange(start: start, end: end)
+            }
+
+            let request = SearchRequest(
+                query: "",
+                topK: 100,
+                timeRange: timeRange,
+                location: locationFilter,
+                folderPath: folderPath
+            )
+
+            let response = try await apiClient.search(request)
+
+            results = response.results
+            totalResults = response.totalResults
+            locationResolved = response.locationResolved
+
+        } catch let error as APIError where error.isCancellation {
+            // Request was cancelled, silently ignore
+            return
+        } catch {
+            errorMessage = error.localizedDescription
+            results = []
+            totalResults = 0
+        }
+
+        isLoading = false
+    }
+
+    /// Exit folder browsing mode.
+    func exitFolderBrowsing() {
+        currentFolderPath = nil
+        results = []
+        totalResults = 0
     }
 }

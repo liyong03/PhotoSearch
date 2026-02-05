@@ -102,10 +102,11 @@ class TimeRange(BaseModel):
 class SearchRequest(BaseModel):
     """Request model for search endpoint."""
 
-    query: str = Field(..., min_length=1, description="Search query")
+    query: str = Field(default="", description="Search query (empty to browse)")
     top_k: int = Field(default=20, ge=1, le=100, description="Number of results")
     time_range: TimeRange | None = Field(default=None, description="Optional time filter")
     location: str | None = Field(default=None, description="Optional location filter")
+    folder_path: str | None = Field(default=None, description="Optional folder path filter")
     min_score: float = Field(default=0.15, ge=0.0, le=1.0, description="Minimum combined score threshold")
     caption_weight: float = Field(default=0.5, ge=0.0, le=1.0, description="Weight for caption similarity (vs image)")
 
@@ -272,6 +273,7 @@ async def search_photos(request: SearchRequest) -> SearchResponse:
         top_k=request.top_k,
         time_range=time_range,
         location=request.location,
+        folder_path=request.folder_path,
         min_score=request.min_score,
         caption_weight=request.caption_weight,
     )
