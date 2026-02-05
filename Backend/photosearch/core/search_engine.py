@@ -396,9 +396,9 @@ class SearchEngine:
         Returns:
             SearchResponse with results.
         """
-        # Handle browse mode (empty query with folder filter)
-        if not query.strip() and folder_path:
-            return self._browse_folder(folder_path, top_k, time_range, location)
+        # Handle browse mode (empty query)
+        if not query.strip():
+            return self._browse_all(top_k, time_range, location, folder_path)
 
         # Parse query for embedded location
         parsed = self.query_parser.parse(query)
@@ -510,30 +510,32 @@ class SearchEngine:
             location_resolved=location_resolved,
         )
 
-    def _browse_folder(
+    def _browse_all(
         self,
-        folder_path: str,
         top_k: int = 20,
         time_range: Optional[tuple[datetime, datetime]] = None,
         location: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> SearchResponse:
-        """Browse photos in a folder without a search query.
+        """Browse photos without a search query.
 
-        Returns all photos in the folder, sorted by timestamp (newest first).
+        Returns all photos (or photos in a folder), sorted by timestamp (newest first).
 
         Args:
-            folder_path: Path to the folder to browse.
             top_k: Maximum number of results to return.
             time_range: Optional (start, end) datetime tuple.
             location: Optional explicit location filter.
+            folder_path: Optional folder path to filter by.
 
         Returns:
             SearchResponse with results.
         """
-        logger.info(f"Browse folder: {folder_path}")
-
-        # Get all photos in the folder from database
-        photos = self.db.get_photos_by_folder(folder_path)
+        if folder_path:
+            logger.info(f"Browse folder: {folder_path}")
+            photos = self.db.get_photos_by_folder(folder_path)
+        else:
+            logger.info("Browse all photos")
+            photos = self.db.get_all_photos()
 
         # Apply filters
         filtered_photos = []
@@ -578,7 +580,7 @@ class SearchEngine:
                 country=photo.country,
             ))
 
-        logger.info(f"Browse folder returned {len(results)} results")
+        logger.info(f"Browse returned {len(results)} results (total: {len(filtered_photos)})")
 
         return SearchResponse(
             results=results,

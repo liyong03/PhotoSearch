@@ -164,4 +164,49 @@ class SearchViewModel: ObservableObject {
         results = []
         totalResults = 0
     }
+
+    /// Load all photos from the library.
+    func loadAllPhotos() async {
+        // Cancel any existing search
+        searchTask?.cancel()
+
+        // Clear search query and folder when loading all
+        searchQuery = ""
+        currentFolderPath = nil
+
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // Build time range if dates are set
+            var timeRange: TimeRange?
+            if let start = startDate, let end = endDate {
+                timeRange = TimeRange(start: start, end: end)
+            }
+
+            let request = SearchRequest(
+                query: "",
+                topK: 100,
+                timeRange: timeRange,
+                location: locationFilter,
+                folderPath: nil
+            )
+
+            let response = try await apiClient.search(request)
+
+            results = response.results
+            totalResults = response.totalResults
+            locationResolved = response.locationResolved
+
+        } catch let error as APIError where error.isCancellation {
+            // Request was cancelled, silently ignore
+            return
+        } catch {
+            errorMessage = error.localizedDescription
+            results = []
+            totalResults = 0
+        }
+
+        isLoading = false
+    }
 }

@@ -30,8 +30,9 @@ struct ContentView: View {
                 // Search bar
                 HStack {
                     SearchBar(text: $searchViewModel.searchQuery, onSubmit: {
+                        selectedSidebarItem = nil
+                        selectedFolder = nil
                         Task {
-                            selectedFolder = nil
                             await searchViewModel.search()
                         }
                     })
@@ -66,8 +67,10 @@ struct ContentView: View {
                         Task {
                             if let folder = selectedFolder {
                                 await searchViewModel.browseFolder(folder.path)
-                            } else {
+                            } else if !searchViewModel.searchQuery.isEmpty {
                                 await searchViewModel.search()
+                            } else {
+                                await searchViewModel.loadAllPhotos()
                             }
                         }
                     }
@@ -132,6 +135,10 @@ struct ContentView: View {
                 return event
             }
         }
+        .task {
+            // Load all photos on startup
+            await searchViewModel.loadAllPhotos()
+        }
         .alert("Error", isPresented: .constant(appState.errorMessage != nil)) {
             Button("OK") {
                 appState.dismissError()
@@ -158,9 +165,12 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedSidebarItem) { _, newItem in
-            // When a sidebar item is selected, exit folder browsing mode
-            if newItem != nil {
-                searchViewModel.exitFolderBrowsing()
+            // When "All Photos" is selected, load all photos
+            if newItem == .allPhotos {
+                selectedFolder = nil
+                Task {
+                    await searchViewModel.loadAllPhotos()
+                }
             }
         }
     }
@@ -181,16 +191,12 @@ struct ContentView: View {
 
 enum SidebarItem: String, Identifiable, CaseIterable {
     case allPhotos = "All Photos"
-    case recent = "Recent"
-    case folders = "Folders"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
         case .allPhotos: return "photo.on.rectangle"
-        case .recent: return "clock"
-        case .folders: return "folder"
         }
     }
 }

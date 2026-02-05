@@ -422,6 +422,20 @@ class Database:
         finally:
             conn.close()
 
+    def get_all_photos(self) -> list[Photo]:
+        """Get all photos in the database.
+
+        Returns:
+            List of all Photo objects.
+        """
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("SELECT * FROM photos")
+            rows = cursor.fetchall()
+            return [self._row_to_photo(row) for row in rows]
+        finally:
+            conn.close()
+
     def get_photos_by_folder(self, folder_path: str) -> list[Photo]:
         """Get all photos in a folder (and subfolders).
 
