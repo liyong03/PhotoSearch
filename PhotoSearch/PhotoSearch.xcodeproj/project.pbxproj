@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -22,9 +22,9 @@
 		AE13D182B3A4D27839409533 /* PhotoSearchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B499EBBDA970CF2D0F37F1 /* PhotoSearchApp.swift */; };
 		D3709EC21E9C9B4F09BBD5C7 /* SearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E13FF9D277ADA879B94DC6 /* SearchViewModel.swift */; };
 		F5BK1001A1B2C3D4E5F60001 /* BookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BK2001A1B2C3D4E5F60001 /* BookmarkManager.swift */; };
-		F5PL1002A1B2C3D4E5F60002 /* PhotoLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */; };
-		F5LV1003A1B2C3D4E5F60003 /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */; };
 		F5FP1004A1B2C3D4E5F60004 /* FilterPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FP2004A1B2C3D4E5F60004 /* FilterPanel.swift */; };
+		F5LV1003A1B2C3D4E5F60003 /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */; };
+		F5PL1002A1B2C3D4E5F60002 /* PhotoLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */; };
 		F6IV1005A1B2C3D4E5F60005 /* IndexingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */; };
 		F6PD1006A1B2C3D4E5F60006 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */; };
 /* End PBXBuildFile section */
@@ -58,9 +58,9 @@
 		F18317A4EDEFEB2624E17718 /* PhotoSearch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PhotoSearch.entitlements; sourceTree = "<group>"; };
 		F464B600AB945B756B9169E0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F5BK2001A1B2C3D4E5F60001 /* BookmarkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkManager.swift; sourceTree = "<group>"; };
-		F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLoader.swift; sourceTree = "<group>"; };
-		F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
 		F5FP2004A1B2C3D4E5F60004 /* FilterPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterPanel.swift; sourceTree = "<group>"; };
+		F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
+		F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLoader.swift; sourceTree = "<group>"; };
 		F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexingViewModel.swift; sourceTree = "<group>"; };
 		F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
 		F7IP2007A1B2C3D4E5F60007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -233,7 +233,6 @@
 			);
 			mainGroup = 5B4D396DB9F8574181C00926;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -439,6 +438,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = PhotoSearch/PhotoSearch.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -446,6 +446,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = PhotoSearch/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -479,6 +480,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = PhotoSearch/PhotoSearch.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -486,6 +488,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = PhotoSearch/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
