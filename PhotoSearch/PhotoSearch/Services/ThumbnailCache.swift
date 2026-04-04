@@ -92,7 +92,9 @@ final class ThumbnailCache: ObservableObject {
             let options: [CFString: Any] = [
                 kCGImageSourceThumbnailMaxPixelSize: maxDimension,
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceShouldCacheImmediately: true,
+                kCGImageSourceShouldCache: false
             ]
 
             if let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) {

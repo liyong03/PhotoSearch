@@ -16,7 +16,7 @@
 		4101B598CEF9BF835FBD8294 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F464B600AB945B756B9169E0 /* Assets.xcassets */; };
 		4F21AC0E5D6B0E114828CC0C /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA920C90867375C3C5BADE2C /* APIModels.swift */; };
 		58CF32720D58344D6E67F212 /* PhotoSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1A6A03DF70F253715B2CCC /* PhotoSearchTests.swift */; };
-		5A3E9955111CC951820F5A49 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A405DC0CD0895535524FA718 /* APIClient.swift */; };
+
 		766B18CA929AC51167427214 /* PhotoThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 229A45CE46F4AC8C67D7266B /* PhotoThumbnailView.swift */; };
 		920709E6A6CED24487A1B718 /* Photo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5889BCECADA909485EE8312 /* Photo.swift */; };
 		AE13D182B3A4D27839409533 /* PhotoSearchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B499EBBDA970CF2D0F37F1 /* PhotoSearchApp.swift */; };
@@ -27,7 +27,9 @@
 		F5PL1002A1B2C3D4E5F60002 /* PhotoLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */; };
 		F6IV1005A1B2C3D4E5F60005 /* IndexingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */; };
 		F6PD1006A1B2C3D4E5F60006 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */; };
-		F7BM1008A1B2C3D4E5F60008 /* BackendManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7BM2008A1B2C3D4E5F60008 /* BackendManager.swift */; };
+
+		F8RC1001A1B2C3D4E5F70001 /* RustAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8RC2001A1B2C3D4E5F70001 /* RustAPIClient.swift */; };
+		F8RC1002A1B2C3D4E5F70002 /* RustCoreSwift in Frameworks */ = {isa = PBXBuildFile; productRef = F8RC3001A1B2C3D4E5F70001 /* RustCoreSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,7 +52,7 @@
 		685FCE3B6E195A6A88B5DDF4 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		90E44E1AEF032B81020140FB /* PhotoSearch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoSearch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		99B499EBBDA970CF2D0F37F1 /* PhotoSearchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSearchApp.swift; sourceTree = "<group>"; };
-		A405DC0CD0895535524FA718 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+
 		B5889BCECADA909485EE8312 /* Photo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Photo.swift; sourceTree = "<group>"; };
 		BA920C90867375C3C5BADE2C /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		BDE4018632AE2F2A73ED7652 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -65,7 +67,8 @@
 		F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexingViewModel.swift; sourceTree = "<group>"; };
 		F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
 		F7IP2007A1B2C3D4E5F60007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		F7BM2008A1B2C3D4E5F60008 /* BackendManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendManager.swift; sourceTree = "<group>"; };
+
+		F8RC2001A1B2C3D4E5F70001 /* RustAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustAPIClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -162,11 +165,10 @@
 		F8AAEBC66537B3743CFF36B2 /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				A405DC0CD0895535524FA718 /* APIClient.swift */,
 				BA920C90867375C3C5BADE2C /* APIModels.swift */,
-				F7BM2008A1B2C3D4E5F60008 /* BackendManager.swift */,
 				F5BK2001A1B2C3D4E5F60001 /* BookmarkManager.swift */,
 				F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */,
+				F8RC2001A1B2C3D4E5F70001 /* RustAPIClient.swift */,
 				2E459568FE4234F1CE4E5DCF /* ThumbnailCache.swift */,
 			);
 			path = Services;
@@ -180,6 +182,7 @@
 			buildConfigurationList = B42A0FDFD1712781775B0FF8 /* Build configuration list for PBXNativeTarget "PhotoSearch" */;
 			buildPhases = (
 				7F473458428F00666E84B1DC /* Sources */,
+				F8RC4001A1B2C3D4E5F70001 /* Frameworks */,
 				3C88CDDA1DD1AD536E0DF43D /* Resources */,
 			);
 			buildRules = (
@@ -188,6 +191,7 @@
 			);
 			name = PhotoSearch;
 			packageProductDependencies = (
+				F8RC3001A1B2C3D4E5F70001 /* RustCoreSwift */,
 			);
 			productName = PhotoSearch;
 			productReference = 90E44E1AEF032B81020140FB /* PhotoSearch.app */;
@@ -236,6 +240,9 @@
 			);
 			mainGroup = 5B4D396DB9F8574181C00926;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F8RC5001A1B2C3D4E5F70001 /* XCLocalSwiftPackageReference "RustCoreSwift" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -256,15 +263,24 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		F8RC4001A1B2C3D4E5F70001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F8RC1002A1B2C3D4E5F70002 /* RustCoreSwift in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		7F473458428F00666E84B1DC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5A3E9955111CC951820F5A49 /* APIClient.swift in Sources */,
 				4F21AC0E5D6B0E114828CC0C /* APIModels.swift in Sources */,
 				24A8722191C5B26ED6733BDA /* AppState.swift in Sources */,
-				F7BM1008A1B2C3D4E5F60008 /* BackendManager.swift in Sources */,
 				F5BK1001A1B2C3D4E5F60001 /* BookmarkManager.swift in Sources */,
 				0D0196024D5B8FF22C75F400 /* ContentView.swift in Sources */,
 				F5FP1004A1B2C3D4E5F60004 /* FilterPanel.swift in Sources */,
@@ -277,6 +293,7 @@
 				AE13D182B3A4D27839409533 /* PhotoSearchApp.swift in Sources */,
 				766B18CA929AC51167427214 /* PhotoThumbnailView.swift in Sources */,
 				2C39C3BD09F567D0C4F38DAD /* SearchBar.swift in Sources */,
+				F8RC1001A1B2C3D4E5F70001 /* RustAPIClient.swift in Sources */,
 				D3709EC21E9C9B4F09BBD5C7 /* SearchViewModel.swift in Sources */,
 				37CD545C7E971D60BB94683B /* SidebarView.swift in Sources */,
 				07ECB29686DCE8521584EE85 /* ThumbnailCache.swift in Sources */,
@@ -456,6 +473,10 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SystemConfiguration,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.photosearch.app;
 				PRODUCT_NAME = PhotoSearch;
 				SDKROOT = macosx;
@@ -498,6 +519,10 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SystemConfiguration,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.photosearch.app;
 				PRODUCT_NAME = PhotoSearch;
 				SDKROOT = macosx;
@@ -536,6 +561,20 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		F8RC5001A1B2C3D4E5F70001 /* XCLocalSwiftPackageReference "RustCoreSwift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../RustCore/RustCoreSwift;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F8RC3001A1B2C3D4E5F70001 /* RustCoreSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RustCoreSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 18910F166B2CBD58F4CC0298 /* Project object */;
 }

@@ -29,7 +29,7 @@ class LibraryViewModel: ObservableObject {
     init(
         bookmarkManager: BookmarkManager = .shared,
         photoLoader: PhotoLoader = .shared,
-        apiClient: any APIClientProtocol = APIClient.shared
+        apiClient: any APIClientProtocol = RustAPIClient.shared
     ) {
         self.bookmarkManager = bookmarkManager
         self.photoLoader = photoLoader
@@ -71,14 +71,8 @@ class LibraryViewModel: ObservableObject {
             // Select the newly added folder
             selectedFolder = folderInfo
 
-            // Automatically start indexing the new folder
-            do {
-                _ = try await indexFolder(folderInfo)
-            } catch {
-                // Don't fail the add operation if indexing fails
-                // The user can manually trigger indexing later via context menu
-                print("Auto-indexing failed: \(error.localizedDescription)")
-            }
+            // Indexing is handled by ContentView via IndexingViewModel
+            // to provide progress tracking in the toolbar.
 
         } catch {
             errorMessage = "Failed to save folder: \(error.localizedDescription)"

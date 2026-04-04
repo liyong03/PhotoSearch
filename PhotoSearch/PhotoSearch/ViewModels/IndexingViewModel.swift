@@ -46,7 +46,7 @@ class IndexingViewModel: ObservableObject {
 
     // MARK: - Initialization
 
-    init(apiClient: any APIClientProtocol = APIClient.shared) {
+    init(apiClient: any APIClientProtocol = RustAPIClient.shared) {
         self.apiClient = apiClient
     }
 

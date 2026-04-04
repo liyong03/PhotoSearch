@@ -1,5 +1,20 @@
 import Foundation
 
+// MARK: - API Client Protocol
+
+/// Protocol for API client operations (enables testing with mocks).
+protocol APIClientProtocol: Sendable {
+    func getStatus() async throws -> BackendStatus
+    func search(_ request: SearchRequest) async throws -> SearchResponse
+    func search(query: String, topK: Int, location: String?) async throws -> SearchResponse
+    func indexPhoto(path: String) async throws -> IndexResult
+    func indexFolder(path: String, recursive: Bool) async throws -> IndexTask
+    func getIndexStatus(taskId: String) async throws -> IndexProgress
+    func deletePhoto(photoId: String) async throws
+    func deleteFolder(path: String) async throws -> DeleteFolderResponse
+    func geocode(placeName: String) async throws -> GeocodeResponse
+}
+
 // MARK: - Backend Status
 
 /// Backend status response.
@@ -254,7 +269,7 @@ enum APIError: LocalizedError, Equatable {
         case .serverError(let code, let message):
             return "Server error \(code): \(message ?? "Unknown error")"
         case .backendNotAvailable:
-            return "Backend server is not available. Please start the backend."
+            return "Search engine is not available."
         case .requestCancelled:
             return nil  // Cancelled requests should not show error to user
         }

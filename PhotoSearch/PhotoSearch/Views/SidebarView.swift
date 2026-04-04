@@ -4,8 +4,8 @@ import SwiftUI
 struct SidebarView: View {
     @Binding var selection: SidebarItem?
     @Binding var selectedFolder: FolderInfo?
-    @EnvironmentObject var appState: AppState
     @ObservedObject var libraryViewModel: LibraryViewModel
+    @ObservedObject var indexingViewModel: IndexingViewModel
     var onFolderSelected: ((FolderInfo) -> Void)?
 
     var body: some View {
@@ -51,7 +51,7 @@ struct SidebarView: View {
                             .contextMenu {
                                 Button("Index Folder") {
                                     Task {
-                                        try? await libraryViewModel.indexFolder(folder)
+                                        await indexingViewModel.startIndexing(path: folder.path)
                                     }
                                 }
 
@@ -70,6 +70,9 @@ struct SidebarView: View {
                     Button {
                         Task {
                             await libraryViewModel.addFolder()
+                            if let folder = libraryViewModel.folders.last {
+                                await indexingViewModel.startIndexing(path: folder.path)
+                            }
                         }
                     } label: {
                         Image(systemName: "plus")
@@ -82,21 +85,6 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .navigationTitle("PhotoSearch")
-        .safeAreaInset(edge: .bottom) {
-            VStack(alignment: .leading, spacing: 4) {
-                Divider()
-                HStack {
-                    Circle()
-                        .fill(appState.isBackendReady ? .green : .red)
-                        .frame(width: 8, height: 8)
-                    Text(appState.isBackendReady ? "Backend Ready" : "Backend Offline")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-            }
-        }
         .alert("Error", isPresented: .constant(libraryViewModel.errorMessage != nil)) {
             Button("OK") {
                 libraryViewModel.dismissError()
@@ -134,7 +122,8 @@ struct FolderRow: View {
     SidebarView(
         selection: .constant(.allPhotos),
         selectedFolder: .constant(nil),
-        libraryViewModel: LibraryViewModel()
+        libraryViewModel: LibraryViewModel(),
+        indexingViewModel: IndexingViewModel()
     )
     .environmentObject(AppState())
     .frame(width: 220)

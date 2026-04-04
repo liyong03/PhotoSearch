@@ -18,6 +18,7 @@ struct ContentView: View {
                 selection: $selectedSidebarItem,
                 selectedFolder: $selectedFolder,
                 libraryViewModel: libraryViewModel,
+                indexingViewModel: indexingViewModel,
                 onFolderSelected: { folder in
                     Task {
                         await searchViewModel.browseFolder(folder.path)
@@ -58,9 +59,7 @@ struct ContentView: View {
                 Divider()
 
                 // Main content area
-                if !appState.isBackendReady {
-                    BackendNotReadyView()
-                } else if searchViewModel.isLoading {
+                if searchViewModel.isLoading {
                     LoadingView()
                 } else if let error = searchViewModel.errorMessage {
                     SearchErrorView(message: error) {
@@ -112,15 +111,6 @@ struct ContentView: View {
                     Label("Add Folder", systemImage: "folder.badge.plus")
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
-
-                Button {
-                    Task {
-                        await appState.checkBackendStatus()
-                    }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .keyboardShortcut("r", modifiers: .command)
             }
         }
         // Keyboard shortcut for focusing search (Cmd+F)
@@ -159,9 +149,8 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .indexingComplete)) { _ in
             showIndexingComplete = true
-            // Refresh the backend status to get updated photo count
             Task {
-                await appState.checkBackendStatus()
+                await appState.refreshStatus()
             }
         }
         .onChange(of: selectedSidebarItem) { _, newItem in
@@ -202,21 +191,6 @@ enum SidebarItem: String, Identifiable, CaseIterable {
 }
 
 // MARK: - Supporting Views
-
-struct BackendNotReadyView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
-                .foregroundColor(.orange)
-            Text("Backend Not Available")
-                .font(.headline)
-            Text("Please start the PhotoSearch backend server.")
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
 
 struct LoadingView: View {
     var body: some View {
@@ -292,9 +266,16 @@ struct IndexingProgressView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ProgressView(value: progress)
-                .progressViewStyle(.linear)
-                .frame(width: 100)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.secondary.opacity(0.2))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.accentColor)
+                        .frame(width: geo.size.width * max(0, min(1, progress)))
+                }
+            }
+            .frame(width: 100, height: 6)
             Text("\(Int(progress * 100))%")
                 .font(.caption)
                 .monospacedDigit()
@@ -380,9 +361,18 @@ struct IndexingToolbarView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ProgressView(value: viewModel.progress)
-                .progressViewStyle(.linear)
-                .frame(width: 100)
+            // Use a simple bar instead of ProgressView to avoid
+            // AppKit auto-layout constraint warnings in toolbar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.secondary.opacity(0.2))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.accentColor)
+                        .frame(width: geo.size.width * max(0, min(1, viewModel.progress)))
+                }
+            }
+            .frame(width: 100, height: 6)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(viewModel.progressPercent)
