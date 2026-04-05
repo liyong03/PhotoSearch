@@ -38,6 +38,7 @@ pub struct SearchRequest {
     pub location: Option<String>,
     pub folder_path: Option<String>,
     pub min_score: Option<f32>,
+    pub keyword_filter: Option<bool>,
 }
 
 #[derive(uniffi::Record)]
@@ -237,11 +238,14 @@ impl PhotoSearchEngine {
                 // Lexical filter (matches Python logic): only include photos where
                 // the caption or tags contain the query terms (or their synonyms).
                 // This is the precision gate — CLIP provides ranking, synonyms provide filtering.
-                if !services::synonyms::check_match(
-                    &semantic_query,
-                    photo.description.as_deref(),
-                    photo.tags.as_deref(),
-                ) {
+                // Can be disabled via keyword_filter=false for pure semantic search.
+                if request.keyword_filter.unwrap_or(true)
+                    && !services::synonyms::check_match(
+                        &semantic_query,
+                        photo.description.as_deref(),
+                        photo.tags.as_deref(),
+                    )
+                {
                     continue;
                 }
 

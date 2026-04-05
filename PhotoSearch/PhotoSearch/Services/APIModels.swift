@@ -48,6 +48,7 @@ struct SearchRequest: Codable, Equatable {
     let folderPath: String?
     let minScore: Double
     let captionWeight: Double
+    let keywordFilter: Bool?
 
     init(
         query: String = "",
@@ -56,7 +57,8 @@ struct SearchRequest: Codable, Equatable {
         location: String? = nil,
         folderPath: String? = nil,
         minScore: Double = 0.15,
-        captionWeight: Double = 0.5
+        captionWeight: Double = 0.5,
+        keywordFilter: Bool? = true
     ) {
         self.query = query
         self.topK = topK
@@ -65,6 +67,7 @@ struct SearchRequest: Codable, Equatable {
         self.folderPath = folderPath
         self.minScore = minScore
         self.captionWeight = captionWeight
+        self.keywordFilter = keywordFilter
     }
 
     enum CodingKeys: String, CodingKey {
@@ -75,6 +78,7 @@ struct SearchRequest: Codable, Equatable {
         case folderPath = "folder_path"
         case minScore = "min_score"
         case captionWeight = "caption_weight"
+        case keywordFilter = "keyword_filter"
     }
 }
 

@@ -1053,10 +1053,11 @@ public struct SearchRequest {
     public var location: String?
     public var folderPath: String?
     public var minScore: Float?
+    public var keywordFilter: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(query: String, topK: UInt32, timeStart: Int64?, timeEnd: Int64?, location: String?, folderPath: String?, minScore: Float?) {
+    public init(query: String, topK: UInt32, timeStart: Int64?, timeEnd: Int64?, location: String?, folderPath: String?, minScore: Float?, keywordFilter: Bool?) {
         self.query = query
         self.topK = topK
         self.timeStart = timeStart
@@ -1064,6 +1065,7 @@ public struct SearchRequest {
         self.location = location
         self.folderPath = folderPath
         self.minScore = minScore
+        self.keywordFilter = keywordFilter
     }
 }
 
@@ -1095,6 +1097,9 @@ extension SearchRequest: Equatable, Hashable {
         if lhs.minScore != rhs.minScore {
             return false
         }
+        if lhs.keywordFilter != rhs.keywordFilter {
+            return false
+        }
         return true
     }
 
@@ -1106,6 +1111,7 @@ extension SearchRequest: Equatable, Hashable {
         hasher.combine(location)
         hasher.combine(folderPath)
         hasher.combine(minScore)
+        hasher.combine(keywordFilter)
     }
 }
 
@@ -1124,7 +1130,8 @@ public struct FfiConverterTypeSearchRequest: FfiConverterRustBuffer {
                 timeEnd: FfiConverterOptionInt64.read(from: &buf), 
                 location: FfiConverterOptionString.read(from: &buf), 
                 folderPath: FfiConverterOptionString.read(from: &buf), 
-                minScore: FfiConverterOptionFloat.read(from: &buf)
+                minScore: FfiConverterOptionFloat.read(from: &buf), 
+                keywordFilter: FfiConverterOptionBool.read(from: &buf)
         )
     }
 
@@ -1136,6 +1143,7 @@ public struct FfiConverterTypeSearchRequest: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.location, into: &buf)
         FfiConverterOptionString.write(value.folderPath, into: &buf)
         FfiConverterOptionFloat.write(value.minScore, into: &buf)
+        FfiConverterOptionBool.write(value.keywordFilter, into: &buf)
     }
 }
 
@@ -1397,6 +1405,30 @@ fileprivate struct FfiConverterOptionFloat: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterFloat.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionBool: FfiConverterRustBuffer {
+    typealias SwiftType = Bool?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterBool.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterBool.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }

@@ -49,6 +49,7 @@ fn search(engine: &rust_core::PhotoSearchEngine, query: &str, top_k: u32) -> Vec
         location: None,
         folder_path: None,
         min_score: None,
+        keyword_filter: None,
     }).unwrap()
 }
 
@@ -230,6 +231,7 @@ fn test_folder_filter() {
         location: None,
         folder_path: Some(TEST_IMAGES_DIR.to_string()),
         min_score: None,
+        keyword_filter: None,
     }).unwrap();
     assert!(!results.is_empty(), "Folder filter should return photos in test folder");
 }

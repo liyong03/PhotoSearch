@@ -26,6 +26,9 @@ class SearchViewModel: ObservableObject {
     /// Location filter.
     @Published var locationFilter: String?
 
+    /// Whether to apply keyword filtering (synonym matching on captions).
+    @Published var keywordFilter: Bool = true
+
     /// Current folder being browsed (nil for search mode).
     @Published var currentFolderPath: String?
 
@@ -76,7 +79,8 @@ class SearchViewModel: ObservableObject {
                 query: query,
                 topK: 50,
                 timeRange: timeRange,
-                location: locationFilter
+                location: locationFilter,
+                keywordFilter: keywordFilter
             )
 
             let response = try await apiClient.search(request)
@@ -111,6 +115,7 @@ class SearchViewModel: ObservableObject {
         startDate = nil
         endDate = nil
         locationFilter = nil
+        keywordFilter = true
     }
 
     /// Browse photos in a specific folder.
