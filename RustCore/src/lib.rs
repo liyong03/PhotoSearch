@@ -8,12 +8,6 @@ pub mod services;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-/// Hybrid scoring weight on the image-CLIP score; the rest goes to caption text-CLIP.
-/// 0.6 keeps image-vision dominant but lets the caption channel veto unrelated photos
-/// whose image embedding happens to score highly.
-const IMAGE_WEIGHT: f32 = 0.6;
-const CAPTION_WEIGHT: f32 = 1.0 - IMAGE_WEIGHT;
-
 /// The main entry point for the PhotoSearch Rust core.
 /// Wraps all subsystems (CLIP, BLIP, vector search, database, services)
 /// and exposes a high-level API to Swift via UniFFI.
@@ -44,7 +38,6 @@ pub struct SearchRequest {
     pub location: Option<String>,
     pub folder_path: Option<String>,
     pub min_score: Option<f32>,
-    pub keyword_filter: Option<bool>,
 }
 
 #[derive(uniffi::Record)]
@@ -134,20 +127,14 @@ impl PhotoSearchEngine {
             }
         }
 
-        // One-time backfill: any photo with a description but no caption
-        // embedding gets it encoded now. After a full re-index this is a no-op.
-        if let Err(e) = engine.backfill_caption_embeddings() {
-            log::warn!("Caption backfill failed (non-fatal): {:?}", e);
-        }
-
         Ok(engine)
     }
 
-    /// Rebuild all embeddings from the photo records already in the database.
+    /// Rebuild image embeddings from the photo records already in the database.
     ///
     /// Used after a model change: the BLIP captions are kept (re-captioning is
-    /// the expensive part), only the CLIP/SigLIP image and text embeddings are
-    /// recomputed. Photos whose image file is missing are skipped.
+    /// the expensive part), only the SigLIP image embeddings are recomputed.
+    /// Photos whose image file is missing are skipped.
     pub fn reindex_from_database(&self) -> Result<u32, PhotoSearchError> {
         let total = self.db.photo_count().unwrap_or(0);
         log::info!("Re-indexing {total} photos from database (model change detected)...");
@@ -172,13 +159,6 @@ impl PhotoSearchEngine {
                     }
                     Err(e) => {
                         log::warn!("reindex: image encode failed for {}: {e}", photo.path);
-                    }
-                }
-                if let Some(desc) = photo.description.as_deref() {
-                    if !desc.trim().is_empty() {
-                        if let Ok(cap) = self.clip.encode_text(desc) {
-                            let _ = self.index.add_caption(&photo.id, &cap);
-                        }
                     }
                 }
                 done += 1;
@@ -216,8 +196,8 @@ impl PhotoSearchEngine {
     }
 
     /// Search for photos matching a query.
-    /// Implements full pipeline: parse query → resolve location → CLIP encode →
-    /// vector search (oversampled) → filter by time/location/folder → lexical match → rank → top_k.
+    /// Pipeline: parse query → resolve location → SigLIP text encode →
+    /// vector search (oversampled) → filter by time/location/folder → rank → top_k.
     pub fn search(&self, request: SearchRequest) -> Result<Vec<SearchResult>, PhotoSearchError> {
         // Browse mode: empty query returns all photos
         if request.query.trim().is_empty() {
@@ -234,7 +214,7 @@ impl PhotoSearchEngine {
             .as_deref()
             .and_then(|loc| self.geocoder.geocode(loc));
 
-        // 3. Encode text query with CLIP
+        // 3. Encode text query with SigLIP
         let query_embedding = self.clip.encode_text(&semantic_query)?;
 
         // 4. Vector search with oversampling (10x candidates for post-filtering)
@@ -246,14 +226,8 @@ impl PhotoSearchEngine {
                 message: e.to_string(),
             })?;
 
-        // 5. Build candidate set from DB, applying all filters.
-        // `keyword_filter`: false (default) = pure image SigLIP score,
-        // true = hybrid image+caption rerank.
-        // Default is pure: the COCO eval showed SigLIP's image encoder is
-        // strong enough that the BLIP-caption channel only adds noise
-        // (hybrid P@10 0.867 vs pure 0.956). Hybrid was a workaround for the
-        // weaker CLIP image encoder and is now counterproductive.
-        let use_hybrid = request.keyword_filter.unwrap_or(false);
+        // 5. Build candidate set from DB, applying all filters. Photos are
+        // ranked purely by SigLIP image-embedding similarity.
         let mut results: Vec<SearchResult> = Vec::new();
         let min_score = request.min_score.unwrap_or(0.0);
 
@@ -309,39 +283,24 @@ impl PhotoSearchEngine {
                 }
             }
 
-            // Hybrid score: combine image-CLIP with caption text-CLIP if available.
-            // Pure-image mode (keyword_filter=false) skips the caption channel.
-            let final_score = if use_hybrid {
-                if let Some(caption_emb) = self.index.get_caption(&photo_id) {
-                    let caption_score = search::cosine_similarity(&query_embedding, &caption_emb);
-                    IMAGE_WEIGHT * image_score + CAPTION_WEIGHT * caption_score
-                } else {
-                    // No caption embedding (e.g. photo had no description) — fall back
-                    // to the image score so it doesn't get unfairly demoted.
-                    image_score
-                }
-            } else {
-                image_score
-            };
-
-            if final_score < min_score {
+            if image_score < min_score {
                 continue;
             }
 
             if let Ok(Some(photo)) = self.db.get_photo(&photo_id) {
                 results.push(SearchResult {
                     photo_id: photo.id,
-                    score: final_score,
+                    score: image_score,
                     path: photo.path,
                     description: photo.description,
                     timestamp: photo.timestamp,
                 });
             }
-        }
 
-        // Re-sort by combined score (image-only candidate order may not match hybrid order).
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
-        results.truncate(request.top_k as usize);
+            if results.len() >= request.top_k as usize {
+                break;
+            }
+        }
 
         Ok(results)
     }
@@ -534,64 +493,11 @@ impl PhotoSearchEngine {
                 message: e.to_string(),
             })?;
 
-        // Encode the caption (BLIP description) into a CLIP text embedding so the
-        // hybrid scorer can compare query↔caption alongside query↔image.
-        if let Some(ref desc) = photo.description {
-            if !desc.trim().is_empty() {
-                match self.clip.encode_text(desc) {
-                    Ok(cap_emb) => {
-                        if let Err(e) = self.index.add_caption(&photo_id, &cap_emb) {
-                            log::warn!("Failed to store caption embedding for {}: {}", photo_id, e);
-                        }
-                    }
-                    Err(e) => log::warn!("CLIP text encode failed for caption of {}: {}", photo_id, e),
-                }
-            }
-        }
-
         Ok(IndexResult {
             photo_id,
             success: true,
             error: None,
         })
-    }
-
-    /// Backfill caption embeddings for any indexed photo that has a description in
-    /// the DB but no caption embedding in the vector index. Safe to call at startup;
-    /// no-op once the index is fully migrated.
-    pub fn backfill_caption_embeddings(&self) -> Result<u32, PhotoSearchError> {
-        let mut migrated = 0u32;
-        for photo_id in self.index.all_photo_ids() {
-            if self.index.has_caption(&photo_id) {
-                continue;
-            }
-            let Ok(Some(photo)) = self.db.get_photo(&photo_id) else {
-                continue;
-            };
-            let Some(desc) = photo.description.as_deref() else {
-                continue;
-            };
-            if desc.trim().is_empty() {
-                continue;
-            }
-            match self.clip.encode_text(desc) {
-                Ok(cap_emb) => {
-                    if let Err(e) = self.index.add_caption(&photo_id, &cap_emb) {
-                        log::warn!("Backfill: failed to store caption embedding for {}: {}", photo_id, e);
-                        continue;
-                    }
-                    migrated += 1;
-                    if migrated % 50 == 0 {
-                        log::info!("Backfill progress: {} caption embeddings", migrated);
-                    }
-                }
-                Err(e) => log::warn!("Backfill: CLIP text encode failed for {}: {}", photo_id, e),
-            }
-        }
-        if migrated > 0 {
-            log::info!("Backfill complete: encoded {} caption embeddings", migrated);
-        }
-        Ok(migrated)
     }
 
     /// Delete a photo from the index and database.

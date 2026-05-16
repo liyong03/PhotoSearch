@@ -8,14 +8,12 @@ use crate::clip::{EMBEDDING_DIM, MODEL_TAG};
 
 /// On-disk format magic + version.
 /// v1: raw `[count][entries]` of image embeddings (legacy CLIP, no header).
-/// v2: `[magic][version][image_map][caption_map]`.
-/// v3: adds a model tag + embedding dim so a model swap can be detected and
-///     the index discarded (the embeddings are model-specific and incomparable).
+/// v2/v3: header + image map + caption map (hybrid scoring, since removed).
+/// v4: header + image map only. The caption map is gone — pure image scoring.
 const MAGIC: &[u8; 4] = b"PSVI";
-const FORMAT_VERSION: u32 = 3;
+const FORMAT_VERSION: u32 = 4;
 
 /// In-memory vector index with brute-force cosine similarity search.
-/// Stores image embeddings and (optionally) caption text embeddings per photo.
 pub struct VectorIndex {
     inner: Mutex<VectorIndexInner>,
 }
@@ -23,9 +21,6 @@ pub struct VectorIndex {
 struct VectorIndexInner {
     /// Map from photo_id to image embedding vector.
     embeddings: HashMap<String, Vec<f32>>,
-    /// Map from photo_id to caption text embedding vector. May be missing
-    /// for photos with no description.
-    caption_embeddings: HashMap<String, Vec<f32>>,
     /// Path to persist the index on disk.
     index_path: PathBuf,
 }
@@ -34,13 +29,12 @@ impl VectorIndex {
     /// Create or load a vector index.
     ///
     /// If the on-disk index was written by a different model (different tag or
-    /// embedding dimension), it is silently discarded — the engine is expected
-    /// to re-index from the database afterwards.
+    /// embedding dimension) or an older format, it is silently discarded — the
+    /// engine is expected to re-index from the database afterwards.
     pub fn new(index_path: &str) -> Result<Self> {
         let path = PathBuf::from(index_path);
         let mut inner = VectorIndexInner {
             embeddings: HashMap::new(),
-            caption_embeddings: HashMap::new(),
             index_path: path.clone(),
         };
 
@@ -62,40 +56,10 @@ impl VectorIndex {
         Ok(())
     }
 
-    /// Add a caption text embedding for a photo.
-    pub fn add_caption(&self, photo_id: &str, embedding: &[f32]) -> Result<()> {
-        let mut inner = self.inner.lock().unwrap();
-        assert_eq!(embedding.len(), EMBEDDING_DIM, "Caption embedding must be {EMBEDDING_DIM}-dim");
-        inner.caption_embeddings.insert(photo_id.to_string(), embedding.to_vec());
-        inner.save()?;
-        Ok(())
-    }
-
-    /// Get a copy of the caption embedding for a photo, if present.
-    pub fn get_caption(&self, photo_id: &str) -> Option<Vec<f32>> {
-        self.inner.lock().unwrap().caption_embeddings.get(photo_id).cloned()
-    }
-
-    /// Whether the photo has a caption embedding stored.
-    pub fn has_caption(&self, photo_id: &str) -> bool {
-        self.inner.lock().unwrap().caption_embeddings.contains_key(photo_id)
-    }
-
-    /// Whether the photo has an image embedding stored.
-    pub fn has_image(&self, photo_id: &str) -> bool {
-        self.inner.lock().unwrap().embeddings.contains_key(photo_id)
-    }
-
-    /// All photo_ids that have an image embedding (for migration scans).
-    pub fn all_photo_ids(&self) -> Vec<String> {
-        self.inner.lock().unwrap().embeddings.keys().cloned().collect()
-    }
-
-    /// Remove an embedding (both image and caption).
+    /// Remove an embedding.
     pub fn remove(&self, photo_id: &str) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
         inner.embeddings.remove(photo_id);
-        inner.caption_embeddings.remove(photo_id);
         inner.save()?;
         Ok(())
     }
@@ -121,17 +85,12 @@ impl VectorIndex {
     pub fn len(&self) -> usize {
         self.inner.lock().unwrap().embeddings.len()
     }
-
-    pub fn caption_len(&self) -> usize {
-        self.inner.lock().unwrap().caption_embeddings.len()
-    }
 }
 
 impl VectorIndexInner {
-    /// Save the index in v3 format:
-    /// [magic 4][version u32][tag_len u32][tag bytes][embedding_dim u32]
-    /// [image_map][caption_map]
-    /// Each map: [count u32] then per entry [id_len u32][id][dim × f32 LE].
+    /// Save the index in v4 format:
+    /// [magic 4][version u32][tag_len u32][tag bytes][embedding_dim u32][image_map]
+    /// Map: [count u32] then per entry [id_len u32][id][dim × f32 LE].
     fn save(&self) -> Result<()> {
         if let Some(parent) = self.index_path.parent() {
             fs::create_dir_all(parent)?;
@@ -147,7 +106,6 @@ impl VectorIndexInner {
         data.extend_from_slice(&(EMBEDDING_DIM as u32).to_le_bytes());
 
         write_map(&mut data, &self.embeddings);
-        write_map(&mut data, &self.caption_embeddings);
 
         // Atomic write: tmp + rename, so a crash mid-save can't corrupt the index.
         let tmp = self.index_path.with_extension("tmp");
@@ -161,10 +119,7 @@ impl VectorIndexInner {
         if data.len() >= 4 && &data[0..4] == MAGIC {
             self.load_versioned(&data)
         } else {
-            // Legacy v1 (no header): pre-SigLIP CLIP embeddings — incompatible.
-            log::warn!(
-                "Vector index is legacy (pre-SigLIP) format — discarding; re-index required"
-            );
+            log::warn!("Vector index is legacy format — discarding; re-index required");
             Ok(())
         }
     }
@@ -198,12 +153,10 @@ impl VectorIndexInner {
         }
 
         read_map(data, &mut offset, &mut self.embeddings)?;
-        read_map(data, &mut offset, &mut self.caption_embeddings)?;
 
         log::info!(
-            "Loaded {} image + {} caption embeddings (v3, {MODEL_TAG})",
-            self.embeddings.len(),
-            self.caption_embeddings.len()
+            "Loaded {} image embeddings (v4, {MODEL_TAG})",
+            self.embeddings.len()
         );
         Ok(())
     }
@@ -289,20 +242,16 @@ mod tests {
     }
 
     #[test]
-    fn test_save_load_v3_with_captions() {
-        let path = tmp("v3");
+    fn test_save_load_v4() {
+        let path = tmp("v4");
         let _ = fs::remove_file(&path);
 
         let index = VectorIndex::new(&path).unwrap();
         index.add("photo1", &unit_vec(0)).unwrap();
-        index.add_caption("photo1", &unit_vec(1)).unwrap();
+        index.add("photo2", &unit_vec(1)).unwrap();
 
         let index2 = VectorIndex::new(&path).unwrap();
-        assert_eq!(index2.len(), 1);
-        assert_eq!(index2.caption_len(), 1);
-        assert!(index2.has_image("photo1"));
-        let recalled = index2.get_caption("photo1").unwrap();
-        assert!((recalled[1] - 1.0).abs() < 1e-6);
+        assert_eq!(index2.len(), 2);
 
         let _ = fs::remove_file(&path);
     }
@@ -313,7 +262,6 @@ mod tests {
         let path = tmp("v1_legacy");
         let _ = fs::remove_file(&path);
 
-        // Hand-build a v1 file: [count u32][id_len u32][id][512 × f32].
         let mut data = Vec::new();
         data.extend_from_slice(&1u32.to_le_bytes());
         let id = "legacy_photo";
@@ -330,7 +278,29 @@ mod tests {
         let _ = fs::remove_file(&path);
     }
 
-    /// A v3 file written with a different model tag must be discarded.
+    /// An older v3 (caption-map) file must be discarded on version mismatch.
+    #[test]
+    fn test_old_v3_discarded() {
+        let path = tmp("v3_old");
+        let _ = fs::remove_file(&path);
+
+        let mut data = Vec::new();
+        data.extend_from_slice(MAGIC);
+        data.extend_from_slice(&3u32.to_le_bytes()); // old version
+        let tag = MODEL_TAG.as_bytes();
+        data.extend_from_slice(&(tag.len() as u32).to_le_bytes());
+        data.extend_from_slice(tag);
+        data.extend_from_slice(&(EMBEDDING_DIM as u32).to_le_bytes());
+        data.extend_from_slice(&0u32.to_le_bytes());
+        fs::write(&path, data).unwrap();
+
+        let index = VectorIndex::new(&path).unwrap();
+        assert_eq!(index.len(), 0, "old-format index must be discarded");
+
+        let _ = fs::remove_file(&path);
+    }
+
+    /// A v4 file written with a different model tag must be discarded.
     #[test]
     fn test_foreign_model_tag_discarded() {
         let path = tmp("foreign_tag");
@@ -343,8 +313,7 @@ mod tests {
         data.extend_from_slice(&(tag.len() as u32).to_le_bytes());
         data.extend_from_slice(tag);
         data.extend_from_slice(&(EMBEDDING_DIM as u32).to_le_bytes());
-        data.extend_from_slice(&0u32.to_le_bytes()); // empty image map
-        data.extend_from_slice(&0u32.to_le_bytes()); // empty caption map
+        data.extend_from_slice(&0u32.to_le_bytes());
         fs::write(&path, data).unwrap();
 
         let index = VectorIndex::new(&path).unwrap();

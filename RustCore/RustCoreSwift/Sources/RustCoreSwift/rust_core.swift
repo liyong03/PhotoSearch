@@ -537,13 +537,6 @@ fileprivate struct FfiConverterString: FfiConverter {
 public protocol PhotoSearchEngineProtocol: AnyObject, Sendable {
     
     /**
-     * Backfill caption embeddings for any indexed photo that has a description in
-     * the DB but no caption embedding in the vector index. Safe to call at startup;
-     * no-op once the index is fully migrated.
-     */
-    func backfillCaptionEmbeddings() throws  -> UInt32
-    
-    /**
      * Browse mode: return all photos with optional time/folder filtering, no query needed.
      */
     func browseAll(request: SearchRequest) throws  -> [SearchResult]
@@ -604,14 +597,23 @@ public protocol PhotoSearchEngineProtocol: AnyObject, Sendable {
     func isReady()  -> Bool
     
     /**
+     * Rebuild image embeddings from the photo records already in the database.
+     *
+     * Used after a model change: the BLIP captions are kept (re-captioning is
+     * the expensive part), only the SigLIP image embeddings are recomputed.
+     * Photos whose image file is missing are skipped.
+     */
+    func reindexFromDatabase() throws  -> UInt32
+    
+    /**
      * Reverse geocode GPS coordinates to a place name.
      */
     func reverseGeocode(lat: Double, lon: Double)  -> String?
     
     /**
      * Search for photos matching a query.
-     * Implements full pipeline: parse query → resolve location → CLIP encode →
-     * vector search (oversampled) → filter by time/location/folder → lexical match → rank → top_k.
+     * Pipeline: parse query → resolve location → SigLIP text encode →
+     * vector search (oversampled) → filter by time/location/folder → rank → top_k.
      */
     func search(request: SearchRequest) throws  -> [SearchResult]
     
@@ -684,18 +686,6 @@ public convenience init(dataDir: String)throws  {
 
     
 
-    
-    /**
-     * Backfill caption embeddings for any indexed photo that has a description in
-     * the DB but no caption embedding in the vector index. Safe to call at startup;
-     * no-op once the index is fully migrated.
-     */
-open func backfillCaptionEmbeddings()throws  -> UInt32  {
-    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePhotoSearchError_lift) {
-    uniffi_rust_core_fn_method_photosearchengine_backfill_caption_embeddings(self.uniffiClonePointer(),$0
-    )
-})
-}
     
     /**
      * Browse mode: return all photos with optional time/folder filtering, no query needed.
@@ -828,6 +818,20 @@ open func isReady() -> Bool  {
 }
     
     /**
+     * Rebuild image embeddings from the photo records already in the database.
+     *
+     * Used after a model change: the BLIP captions are kept (re-captioning is
+     * the expensive part), only the SigLIP image embeddings are recomputed.
+     * Photos whose image file is missing are skipped.
+     */
+open func reindexFromDatabase()throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePhotoSearchError_lift) {
+    uniffi_rust_core_fn_method_photosearchengine_reindex_from_database(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
      * Reverse geocode GPS coordinates to a place name.
      */
 open func reverseGeocode(lat: Double, lon: Double) -> String?  {
@@ -841,8 +845,8 @@ open func reverseGeocode(lat: Double, lon: Double) -> String?  {
     
     /**
      * Search for photos matching a query.
-     * Implements full pipeline: parse query → resolve location → CLIP encode →
-     * vector search (oversampled) → filter by time/location/folder → lexical match → rank → top_k.
+     * Pipeline: parse query → resolve location → SigLIP text encode →
+     * vector search (oversampled) → filter by time/location/folder → rank → top_k.
      */
 open func search(request: SearchRequest)throws  -> [SearchResult]  {
     return try  FfiConverterSequenceTypeSearchResult.lift(try rustCallWithError(FfiConverterTypePhotoSearchError_lift) {
@@ -1072,11 +1076,10 @@ public struct SearchRequest {
     public var location: String?
     public var folderPath: String?
     public var minScore: Float?
-    public var keywordFilter: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(query: String, topK: UInt32, timeStart: Int64?, timeEnd: Int64?, location: String?, folderPath: String?, minScore: Float?, keywordFilter: Bool?) {
+    public init(query: String, topK: UInt32, timeStart: Int64?, timeEnd: Int64?, location: String?, folderPath: String?, minScore: Float?) {
         self.query = query
         self.topK = topK
         self.timeStart = timeStart
@@ -1084,7 +1087,6 @@ public struct SearchRequest {
         self.location = location
         self.folderPath = folderPath
         self.minScore = minScore
-        self.keywordFilter = keywordFilter
     }
 }
 
@@ -1116,9 +1118,6 @@ extension SearchRequest: Equatable, Hashable {
         if lhs.minScore != rhs.minScore {
             return false
         }
-        if lhs.keywordFilter != rhs.keywordFilter {
-            return false
-        }
         return true
     }
 
@@ -1130,7 +1129,6 @@ extension SearchRequest: Equatable, Hashable {
         hasher.combine(location)
         hasher.combine(folderPath)
         hasher.combine(minScore)
-        hasher.combine(keywordFilter)
     }
 }
 
@@ -1149,8 +1147,7 @@ public struct FfiConverterTypeSearchRequest: FfiConverterRustBuffer {
                 timeEnd: FfiConverterOptionInt64.read(from: &buf), 
                 location: FfiConverterOptionString.read(from: &buf), 
                 folderPath: FfiConverterOptionString.read(from: &buf), 
-                minScore: FfiConverterOptionFloat.read(from: &buf), 
-                keywordFilter: FfiConverterOptionBool.read(from: &buf)
+                minScore: FfiConverterOptionFloat.read(from: &buf)
         )
     }
 
@@ -1162,7 +1159,6 @@ public struct FfiConverterTypeSearchRequest: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.location, into: &buf)
         FfiConverterOptionString.write(value.folderPath, into: &buf)
         FfiConverterOptionFloat.write(value.minScore, into: &buf)
-        FfiConverterOptionBool.write(value.keywordFilter, into: &buf)
     }
 }
 
@@ -1432,30 +1428,6 @@ fileprivate struct FfiConverterOptionFloat: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionBool: FfiConverterRustBuffer {
-    typealias SwiftType = Bool?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterBool.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterBool.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
 fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
@@ -1591,9 +1563,6 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_rust_core_checksum_method_photosearchengine_backfill_caption_embeddings() != 17995) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_rust_core_checksum_method_photosearchengine_browse_all() != 62585) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1630,10 +1599,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_rust_core_checksum_method_photosearchengine_is_ready() != 10372) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_rust_core_checksum_method_photosearchengine_reindex_from_database() != 65028) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_rust_core_checksum_method_photosearchengine_reverse_geocode() != 17189) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_rust_core_checksum_method_photosearchengine_search() != 12480) {
+    if (uniffi_rust_core_checksum_method_photosearchengine_search() != 12953) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_rust_core_checksum_constructor_photosearchengine_new() != 23319) {

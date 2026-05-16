@@ -26,10 +26,6 @@ class SearchViewModel: ObservableObject {
     /// Location filter.
     @Published var locationFilter: String?
 
-    /// Whether to apply hybrid image+caption reranking. Default off: with the
-    /// SigLIP model, pure image scoring outperforms hybrid (see COCO eval).
-    @Published var keywordFilter: Bool = false
-
     /// Current folder being browsed (nil for search mode).
     @Published var currentFolderPath: String?
 
@@ -86,8 +82,7 @@ class SearchViewModel: ObservableObject {
                 query: parsed.semantic,
                 topK: 50,
                 timeRange: timeRange,
-                location: resolvedLocation,
-                keywordFilter: keywordFilter
+                location: resolvedLocation
             )
 
             let response = try await apiClient.search(request)
@@ -122,7 +117,6 @@ class SearchViewModel: ObservableObject {
         startDate = nil
         endDate = nil
         locationFilter = nil
-        keywordFilter = false
     }
 
     /// Browse photos in a specific folder.

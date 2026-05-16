@@ -44,7 +44,6 @@ fn search(
     engine: &rust_core::PhotoSearchEngine,
     query: &str,
     top_k: u32,
-    hybrid: bool,
 ) -> Vec<rust_core::SearchResult> {
     engine
         .search(rust_core::SearchRequest {
@@ -55,7 +54,6 @@ fn search(
             location: None,
             folder_path: None,
             min_score: None,
-            keyword_filter: Some(hybrid),
         })
         .unwrap_or_default()
 }
@@ -89,9 +87,8 @@ fn evaluate_query(
     engine: &rust_core::PhotoSearchEngine,
     labels: &LabelMap,
     query: &str,
-    hybrid: bool,
 ) -> QueryMetrics {
-    let results = search(engine, query, 10, hybrid);
+    let results = search(engine, query, 10);
     let files: Vec<String> = results.iter().map(|r| filename(&r.path)).collect();
 
     let hits_5 = files
@@ -197,29 +194,25 @@ fn main() {
     let run_battery = |label: &str, queries: &[&str]| {
         println!("\n--- {label} ---");
         println!(
-            "{:<12} {:>8} | {:>8} {:>8} {:>8} | {:>8} {:>8} {:>8}",
-            "query", "#rel", "H:P@5", "H:P@10", "H:R@10", "P:P@5", "P:P@10", "P:R@10"
+            "{:<12} {:>8} | {:>8} {:>8} {:>8}",
+            "query", "#rel", "P@5", "P@10", "R@10"
         );
-        let mut sum = [0.0f64; 6];
+        let mut sum = [0.0f64; 3];
         for &q in queries {
-            let h = evaluate_query(&engine, &labels, q, true);
-            let p = evaluate_query(&engine, &labels, q, false);
+            let m = evaluate_query(&engine, &labels, q);
             let nrel = count_relevant(&labels, q);
             println!(
-                "{:<12} {:>8} | {:>8.2} {:>8.2} {:>8.2} | {:>8.2} {:>8.2} {:>8.2}",
-                q, nrel,
-                h.p_at_5, h.p_at_10, h.recall_at_10,
-                p.p_at_5, p.p_at_10, p.recall_at_10
+                "{:<12} {:>8} | {:>8.2} {:>8.2} {:>8.2}",
+                q, nrel, m.p_at_5, m.p_at_10, m.recall_at_10
             );
-            sum[0] += h.p_at_5;  sum[1] += h.p_at_10; sum[2] += h.recall_at_10;
-            sum[3] += p.p_at_5;  sum[4] += p.p_at_10; sum[5] += p.recall_at_10;
+            sum[0] += m.p_at_5;
+            sum[1] += m.p_at_10;
+            sum[2] += m.recall_at_10;
         }
         let n = queries.len() as f64;
         println!(
-            "{:<12} {:>8} | {:>8.2} {:>8.2} {:>8.2} | {:>8.2} {:>8.2} {:>8.2}",
-            "AVERAGE", "",
-            sum[0] / n, sum[1] / n, sum[2] / n,
-            sum[3] / n, sum[4] / n, sum[5] / n
+            "{:<12} {:>8} | {:>8.2} {:>8.2} {:>8.2}",
+            "AVERAGE", "", sum[0] / n, sum[1] / n, sum[2] / n
         );
         (sum, n)
     };
@@ -228,18 +221,9 @@ fn main() {
     let (con_sum, con_n) = run_battery("Concrete queries (category)", &concrete_queries);
 
     // --- Overall summary ----------------------------------------------
-    let tot_n = abs_n + con_n;
-    let h_p10 = (abs_sum[1] + con_sum[1]) / tot_n;
-    let p_p10 = (abs_sum[4] + con_sum[4]) / tot_n;
+    let p10 = (abs_sum[1] + con_sum[1]) / (abs_n + con_n);
     println!("\n{}", "=".repeat(72));
-    println!("SUMMARY  (H = hybrid, P = pure image-CLIP)");
-    println!("  Overall P@10   hybrid={h_p10:.3}   pure={p_p10:.3}");
-    if h_p10 > p_p10 {
-        println!("  → hybrid improves precision@10 by {:.1}%",
-            (h_p10 - p_p10) / p_p10.max(0.001) * 100.0);
-    } else {
-        println!("  → hybrid does NOT improve precision@10 ({:.1}%)",
-            (h_p10 - p_p10) / p_p10.max(0.001) * 100.0);
-    }
+    println!("SUMMARY — pure SigLIP image scoring");
+    println!("  Overall P@10 = {p10:.3}");
     println!("{}", "=".repeat(72));
 }

@@ -16,11 +16,6 @@ struct FilterPanel: View {
                 // Location Filter
                 locationSection
 
-                Divider()
-
-                // Keyword Filter Toggle
-                keywordFilterSection
-
                 // Clear Filters Button
                 if hasActiveFilters {
                     HStack {
@@ -156,37 +151,18 @@ struct FilterPanel: View {
         }
     }
 
-    // MARK: - Keyword Filter Section
-
-    private var keywordFilterSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: $viewModel.keywordFilter) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Keyword Filter")
-                        .font(.subheadline)
-                    Text("Only show photos whose caption matches the query. Turn off for pure semantic (CLIP) search.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .toggleStyle(.switch)
-        }
-    }
-
     // MARK: - Helpers
 
     private var hasActiveFilters: Bool {
         viewModel.startDate != nil ||
         viewModel.endDate != nil ||
-        viewModel.locationFilter != nil ||
-        !viewModel.keywordFilter
+        viewModel.locationFilter != nil
     }
 
     private var activeFilterCount: Int {
         var count = 0
         if viewModel.startDate != nil || viewModel.endDate != nil { count += 1 }
         if viewModel.locationFilter != nil { count += 1 }
-        if !viewModel.keywordFilter { count += 1 }
         return count
     }
 
