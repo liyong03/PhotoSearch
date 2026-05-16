@@ -53,8 +53,11 @@ struct SearchRequest: Codable, Equatable {
         topK: Int = 20,
         timeRange: TimeRange? = nil,
         location: String? = nil,
+        // SigLIP cosine similarities for matching pairs sit in ~0.05-0.11
+        // (much lower scale than CLIP's ~0.25+). 0.03 floors out genuine
+        // noise without cutting valid matches.
         folderPath: String? = nil,
-        minScore: Double = 0.15
+        minScore: Double = 0.03
     ) {
         self.query = query
         self.topK = topK
