@@ -121,14 +121,73 @@ impl PhotoSearchEngine {
             geocoder,
         });
 
-        // One-time backfill: photos indexed before hybrid scoring (v1 index, or
-        // v2 entries without caption embeddings) get their captions encoded now.
-        // Cost is bounded by existing index size and only runs once per photo.
+        // Model-change migration: if the vector index is empty but the database
+        // has photos, the index was discarded because it was built with a
+        // different model (or the file was lost). Rebuild embeddings from the
+        // stored photo records — this re-runs CLIP/SigLIP encoding but reuses
+        // the BLIP captions already in the DB, so it skips the slow captioning.
+        let needs_reindex = engine.index.len() == 0
+            && engine.db.photo_count().unwrap_or(0) > 0;
+        if needs_reindex {
+            if let Err(e) = engine.reindex_from_database() {
+                log::warn!("Re-index from database failed (non-fatal): {:?}", e);
+            }
+        }
+
+        // One-time backfill: any photo with a description but no caption
+        // embedding gets it encoded now. After a full re-index this is a no-op.
         if let Err(e) = engine.backfill_caption_embeddings() {
             log::warn!("Caption backfill failed (non-fatal): {:?}", e);
         }
 
         Ok(engine)
+    }
+
+    /// Rebuild all embeddings from the photo records already in the database.
+    ///
+    /// Used after a model change: the BLIP captions are kept (re-captioning is
+    /// the expensive part), only the CLIP/SigLIP image and text embeddings are
+    /// recomputed. Photos whose image file is missing are skipped.
+    pub fn reindex_from_database(&self) -> Result<u32, PhotoSearchError> {
+        let total = self.db.photo_count().unwrap_or(0);
+        log::info!("Re-indexing {total} photos from database (model change detected)...");
+
+        let mut done = 0u32;
+        let mut offset = 0u32;
+        const BATCH: u32 = 200;
+        loop {
+            let photos = self
+                .db
+                .get_photos(BATCH, offset)
+                .map_err(|e| PhotoSearchError::DatabaseError { message: e.to_string() })?;
+            if photos.is_empty() {
+                break;
+            }
+            for photo in &photos {
+                match self.clip.encode_image(&photo.path) {
+                    Ok(emb) => {
+                        if let Err(e) = self.index.add(&photo.id, &emb) {
+                            log::warn!("reindex: store image emb failed for {}: {e}", photo.id);
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("reindex: image encode failed for {}: {e}", photo.path);
+                    }
+                }
+                if let Some(desc) = photo.description.as_deref() {
+                    if !desc.trim().is_empty() {
+                        if let Ok(cap) = self.clip.encode_text(desc) {
+                            let _ = self.index.add_caption(&photo.id, &cap);
+                        }
+                    }
+                }
+                done += 1;
+            }
+            offset += BATCH;
+            log::info!("  re-indexed {done}/{total}");
+        }
+        log::info!("Re-index complete: {done} photos");
+        Ok(done)
     }
 
     /// Encode a text query into a CLIP embedding.
@@ -188,9 +247,13 @@ impl PhotoSearchEngine {
             })?;
 
         // 5. Build candidate set from DB, applying all filters.
-        // `keyword_filter` is repurposed: true (default) = hybrid CLIP image+caption rerank,
-        // false = pure image CLIP (legacy "off" — useful for A/B comparison).
-        let use_hybrid = request.keyword_filter.unwrap_or(true);
+        // `keyword_filter`: false (default) = pure image SigLIP score,
+        // true = hybrid image+caption rerank.
+        // Default is pure: the COCO eval showed SigLIP's image encoder is
+        // strong enough that the BLIP-caption channel only adds noise
+        // (hybrid P@10 0.867 vs pure 0.956). Hybrid was a workaround for the
+        // weaker CLIP image encoder and is now counterproductive.
+        let use_hybrid = request.keyword_filter.unwrap_or(false);
         let mut results: Vec<SearchResult> = Vec::new();
         let min_score = request.min_score.unwrap_or(0.0);
 

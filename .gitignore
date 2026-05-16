@@ -89,3 +89,4 @@ RustCore/RustCoreSwift/rust_coreFFI.xcframework/macos-arm64_x86_64/librust_core.
 # Test image data — large, downloadable, not source-controlled
 tests/data/coco_sample/
 tests/data/*.zip
+tests/data/eval_index/

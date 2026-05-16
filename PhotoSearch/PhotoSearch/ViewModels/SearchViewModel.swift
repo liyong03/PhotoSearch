@@ -26,8 +26,9 @@ class SearchViewModel: ObservableObject {
     /// Location filter.
     @Published var locationFilter: String?
 
-    /// Whether to apply keyword filtering (synonym matching on captions).
-    @Published var keywordFilter: Bool = true
+    /// Whether to apply hybrid image+caption reranking. Default off: with the
+    /// SigLIP model, pure image scoring outperforms hybrid (see COCO eval).
+    @Published var keywordFilter: Bool = false
 
     /// Current folder being browsed (nil for search mode).
     @Published var currentFolderPath: String?
@@ -121,7 +122,7 @@ class SearchViewModel: ObservableObject {
         startDate = nil
         endDate = nil
         locationFilter = nil
-        keywordFilter = true
+        keywordFilter = false
     }
 
     /// Browse photos in a specific folder.
