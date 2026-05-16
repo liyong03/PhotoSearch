@@ -5,8 +5,9 @@ use candle::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::clip::div_l2_norm;
 use candle_transformers::models::siglip;
-use std::path::Path;
 use tokenizers::Tokenizer;
+
+use crate::services::image_loader;
 
 /// Embedding dimension produced by SigLIP base (text & image share this).
 pub const EMBEDDING_DIM: usize = 768;
@@ -109,10 +110,7 @@ impl ClipEngine {
 
     /// Load and preprocess an image: resize to image_size², RGB, normalize to [-1, 1].
     fn load_image(&self, path: &str) -> Result<Tensor> {
-        let img = image::ImageReader::open(Path::new(path))
-            .context("Failed to open image")?
-            .decode()
-            .context("Failed to decode image")?;
+        let img = image_loader::load_image(path)?;
 
         let img = img.resize_to_fill(
             self.image_size as u32,

@@ -2,8 +2,9 @@ use anyhow::{Context, Result};
 use candle::{DType, Device, IndexOp, Module, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::blip;
-use std::path::Path;
 use tokenizers::Tokenizer;
+
+use crate::services::image_loader;
 
 const SEP_TOKEN_ID: u32 = 102;
 const START_TOKEN_ID: u32 = 30522;
@@ -143,10 +144,7 @@ impl BlipEngine {
     /// Load and preprocess an image for BLIP.
     /// Resizes, converts to RGB, normalizes with ImageNet mean/std.
     fn load_image(&self, path: &str) -> Result<Tensor> {
-        let img = image::ImageReader::open(Path::new(path))
-            .context("Failed to open image")?
-            .decode()
-            .context("Failed to decode image")?;
+        let img = image_loader::load_image(path)?;
 
         let img = img.resize_to_fill(
             self.image_size as u32,

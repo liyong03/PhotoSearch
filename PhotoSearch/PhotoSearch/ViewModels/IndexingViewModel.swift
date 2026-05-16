@@ -1,50 +1,55 @@
 import SwiftUI
 import Combine
 
-/// View model for managing photo indexing operations.
+/// Status of a single folder in the indexing queue.
+enum IndexJobStatus: Equatable {
+    case waiting
+    case indexing
+    case completed
+    case failed
+}
+
+/// One folder's indexing job.
+struct IndexJob: Identifiable, Equatable {
+    let id = UUID()
+    let path: String
+    var status: IndexJobStatus = .waiting
+    var taskId: String?
+    var processed: Int = 0
+    var total: Int = 0
+    var errors: [String] = []
+
+    var name: String { (path as NSString).lastPathComponent }
+    var progress: Double { total > 0 ? Double(processed) / Double(total) : 0 }
+
+    /// Photos successfully indexed (processed counts every attempt, including
+    /// failures, so subtract the errors).
+    var succeeded: Int { max(0, processed - errors.count) }
+}
+
+/// Manages photo indexing as a sequential queue of folders.
+///
+/// Indexing runs one folder at a time: the Rust core serialises BLIP
+/// captioning behind a mutex, so concurrent folders would not actually run
+/// in parallel. Instead, folders added while another is indexing are shown
+/// as "waiting" and processed in order.
 @MainActor
 class IndexingViewModel: ObservableObject {
-    // MARK: - Published Properties
+    // MARK: - Published State
 
-    /// Whether indexing is currently in progress.
-    @Published var isIndexing: Bool = false
-
-    /// Current indexing progress (0.0 to 1.0).
-    @Published var progress: Double = 0.0
-
-    /// Number of photos processed.
-    @Published var processedCount: Int = 0
-
-    /// Total number of photos to process.
-    @Published var totalCount: Int = 0
-
-    /// Current task ID being tracked.
-    @Published var currentTaskId: String?
-
-    /// Error message, if any.
-    @Published var errorMessage: String?
-
-    /// Whether indexing has completed.
-    @Published var isComplete: Bool = false
-
-    /// Errors encountered during indexing.
-    @Published var errors: [String] = []
+    /// All folders in the current batch — waiting, indexing, and finished.
+    @Published var jobs: [IndexJob] = []
 
     // MARK: - Callbacks
 
-    /// Called when indexing completes successfully.
+    /// Called when the whole queue has drained.
     var onComplete: (() -> Void)?
 
-    /// Called when indexing fails.
-    var onError: ((String) -> Void)?
-
-    // MARK: - Private Properties
+    // MARK: - Private
 
     private let apiClient: any APIClientProtocol
     private var pollingTask: Task<Void, Never>?
     private let pollingInterval: TimeInterval = 1.0
-
-    // MARK: - Initialization
 
     init(apiClient: any APIClientProtocol = RustAPIClient.shared) {
         self.apiClient = apiClient
@@ -54,143 +59,135 @@ class IndexingViewModel: ObservableObject {
         pollingTask?.cancel()
     }
 
-    // MARK: - Public Methods
+    // MARK: - Derived State
 
-    /// Start indexing a folder.
-    /// - Parameters:
-    ///   - path: The folder path to index.
-    ///   - recursive: Whether to scan subdirectories.
-    func startIndexing(path: String, recursive: Bool = true) async {
-        isIndexing = true
-        isComplete = false
-        progress = 0.0
-        processedCount = 0
-        totalCount = 0
-        errorMessage = nil
-        errors = []
+    /// Whether any folder is queued or actively indexing.
+    var isIndexing: Bool {
+        jobs.contains { $0.status == .waiting || $0.status == .indexing }
+    }
 
-        do {
-            let task = try await apiClient.indexFolder(path: path, recursive: recursive)
-            currentTaskId = task.taskId
-            totalCount = task.totalFiles ?? 0
+    /// The folder currently being indexed, if any.
+    var activeJob: IndexJob? {
+        jobs.first { $0.status == .indexing }
+    }
 
-            // Start polling for progress
-            startPolling()
-        } catch {
-            isIndexing = false
-            errorMessage = error.localizedDescription
-            onError?(error.localizedDescription)
+    /// Number of folders still waiting to start.
+    var waitingCount: Int {
+        jobs.filter { $0.status == .waiting }.count
+    }
+
+    /// 1-based position of the active folder within the batch.
+    var currentFolderNumber: Int {
+        jobs.filter { $0.status == .completed || $0.status == .failed }.count + 1
+    }
+
+    /// Total folders in the current batch.
+    var totalFolders: Int { jobs.count }
+
+    /// Errors aggregated across the whole batch.
+    var errors: [String] { jobs.flatMap { $0.errors } }
+    var hasErrors: Bool { !errors.isEmpty }
+
+    /// Photos successfully indexed across the whole batch.
+    var totalSucceeded: Int { jobs.reduce(0) { $0 + $1.succeeded } }
+
+    // MARK: - Queue
+
+    /// Add a folder to the indexing queue. Starts immediately if the queue is
+    /// idle, otherwise the folder waits behind the folders already queued.
+    func enqueue(path: String) {
+        // Idle queue: clear the finished jobs from the previous batch.
+        if !isIndexing {
+            jobs.removeAll { $0.status == .completed || $0.status == .failed }
         }
+        // Skip folders already queued or in progress.
+        guard !jobs.contains(where: {
+            $0.path == path && ($0.status == .waiting || $0.status == .indexing)
+        }) else { return }
+
+        jobs.append(IndexJob(path: path))
+        startNextIfIdle()
     }
 
-    /// Check progress for the current task.
-    func checkProgress() async {
-        guard let taskId = currentTaskId else { return }
+    /// Remove every folder that has not started yet.
+    func cancelPending() {
+        jobs.removeAll { $0.status == .waiting }
+    }
 
-        do {
-            let status = try await apiClient.getIndexStatus(taskId: taskId)
-            updateFromProgress(status)
-        } catch {
-            // Don't stop polling on transient errors
-            print("Failed to check progress: \(error)")
+    // MARK: - Private Driver
+
+    private func startNextIfIdle() {
+        guard activeJob == nil else { return }
+
+        guard let idx = jobs.firstIndex(where: { $0.status == .waiting }) else {
+            // No folder waiting — the batch is complete.
+            if jobs.contains(where: { $0.status == .completed || $0.status == .failed }) {
+                NotificationCenter.default.post(name: .indexingComplete, object: nil)
+                onComplete?()
+            }
+            return
         }
-    }
 
-    /// Cancel the current indexing operation.
-    func cancelIndexing() {
-        pollingTask?.cancel()
-        pollingTask = nil
-        isIndexing = false
-        currentTaskId = nil
-    }
+        jobs[idx].status = .indexing
+        let jobId = jobs[idx].id
+        let path = jobs[idx].path
 
-    /// Reset the view model state.
-    func reset() {
-        cancelIndexing()
-        isComplete = false
-        progress = 0.0
-        processedCount = 0
-        totalCount = 0
-        errorMessage = nil
-        errors = []
-    }
-
-    /// Dismiss any error message.
-    func dismissError() {
-        errorMessage = nil
-    }
-
-    // MARK: - Private Methods
-
-    private func startPolling() {
-        pollingTask?.cancel()
-        pollingTask = Task {
-            while !Task.isCancelled && isIndexing {
-                await checkProgress()
-                try? await Task.sleep(nanoseconds: UInt64(pollingInterval * 1_000_000_000))
+        Task {
+            do {
+                let task = try await apiClient.indexFolder(path: path, recursive: true)
+                if let i = jobs.firstIndex(where: { $0.id == jobId }) {
+                    jobs[i].taskId = task.taskId
+                    jobs[i].total = task.totalFiles ?? 0
+                }
+                startPolling(jobId: jobId)
+            } catch {
+                if let i = jobs.firstIndex(where: { $0.id == jobId }) {
+                    jobs[i].status = .failed
+                    jobs[i].errors = [error.localizedDescription]
+                }
+                startNextIfIdle()
             }
         }
     }
 
-    private func updateFromProgress(_ status: IndexProgress) {
-        progress = status.progress
-        processedCount = status.processed
-        totalCount = status.total
-        errors = status.errors
-
-        if status.isComplete {
-            handleCompletion()
-        } else if status.isFailed {
-            handleFailure(message: "Indexing failed")
-        }
-    }
-
-    private func handleCompletion() {
+    private func startPolling(jobId: UUID) {
         pollingTask?.cancel()
-        pollingTask = nil
-        isIndexing = false
-        isComplete = true
-        progress = 1.0
+        pollingTask = Task {
+            while !Task.isCancelled {
+                guard let i = jobs.firstIndex(where: { $0.id == jobId }),
+                      let taskId = jobs[i].taskId else { break }
 
-        // Post notification for completion
-        NotificationCenter.default.post(name: .indexingComplete, object: nil)
+                do {
+                    let status = try await apiClient.getIndexStatus(taskId: taskId)
+                    if let i = jobs.firstIndex(where: { $0.id == jobId }) {
+                        jobs[i].processed = status.processed
+                        jobs[i].total = status.total
+                        jobs[i].errors = status.errors
+                        if status.isComplete {
+                            jobs[i].status = .completed
+                        } else if status.isFailed {
+                            jobs[i].status = .failed
+                        }
+                    }
+                } catch {
+                    // Transient polling error — keep going.
+                }
 
-        onComplete?()
-    }
-
-    private func handleFailure(message: String) {
-        pollingTask?.cancel()
-        pollingTask = nil
-        isIndexing = false
-        errorMessage = message
-
-        onError?(message)
-    }
-
-    // MARK: - Computed Properties
-
-    /// Progress as a percentage string.
-    var progressPercent: String {
-        "\(Int(progress * 100))%"
-    }
-
-    /// Progress description.
-    var progressDescription: String {
-        if totalCount > 0 {
-            return "\(processedCount) of \(totalCount) photos"
+                if let i = jobs.firstIndex(where: { $0.id == jobId }),
+                   jobs[i].status == .completed || jobs[i].status == .failed {
+                    break
+                }
+                try? await Task.sleep(nanoseconds: UInt64(pollingInterval * 1_000_000_000))
+            }
+            // This folder finished — advance the queue.
+            startNextIfIdle()
         }
-        return "Processing..."
-    }
-
-    /// Whether there are any errors.
-    var hasErrors: Bool {
-        !errors.isEmpty
     }
 }
 
 // MARK: - Notifications
 
 extension Notification.Name {
-    /// Posted when indexing completes.
+    /// Posted when the whole indexing queue has drained.
     static let indexingComplete = Notification.Name("indexingComplete")
 }

@@ -141,7 +141,11 @@ struct ContentView: View {
                 showIndexingComplete = false
             }
         } message: {
-            Text("Successfully indexed \(indexingViewModel.processedCount) photos.")
+            if indexingViewModel.hasErrors {
+                Text("Indexed \(indexingViewModel.totalSucceeded) photos. \(indexingViewModel.errors.count) could not be indexed.")
+            } else {
+                Text("Successfully indexed \(indexingViewModel.totalSucceeded) photos.")
+            }
         }
         .sheet(item: $selectedPhotoForDetail) { photo in
             PhotoDetailView(photo: photo)
@@ -169,9 +173,9 @@ struct ContentView: View {
     private func addAndIndexFolder() async {
         await libraryViewModel.addFolder()
 
-        // If a folder was added, start indexing it
+        // If a folder was added, queue it for indexing.
         if let folder = libraryViewModel.folders.last {
-            await indexingViewModel.startIndexing(path: folder.path)
+            indexingViewModel.enqueue(path: folder.path)
         }
     }
 }
@@ -261,28 +265,6 @@ struct EmptyFolderView: View {
     }
 }
 
-struct IndexingProgressView: View {
-    let progress: Double
-
-    var body: some View {
-        HStack(spacing: 8) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.secondary.opacity(0.2))
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.accentColor)
-                        .frame(width: geo.size.width * max(0, min(1, progress)))
-                }
-            }
-            .frame(width: 100, height: 6)
-            Text("\(Int(progress * 100))%")
-                .font(.caption)
-                .monospacedDigit()
-        }
-    }
-}
-
 struct SearchErrorView: View {
     let message: String
     var onRetry: (() -> Void)?
@@ -356,49 +338,63 @@ struct SearchResultsView: View {
 
 // MARK: - Indexing Toolbar View
 
+/// Toolbar summary of the indexing queue: a progress bar for the folder
+/// currently being indexed, plus a popover listing every queued folder.
 struct IndexingToolbarView: View {
     @ObservedObject var viewModel: IndexingViewModel
+    @State private var showQueue = false
+    @State private var showErrors = false
 
     var body: some View {
         HStack(spacing: 8) {
-            // Use a simple bar instead of ProgressView to avoid
-            // AppKit auto-layout constraint warnings in toolbar
+            // Determinate bar for the active folder. A plain shape is used
+            // instead of ProgressView to avoid AppKit auto-layout warnings
+            // in the toolbar.
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 2)
                         .fill(Color.secondary.opacity(0.2))
                     RoundedRectangle(cornerRadius: 2)
                         .fill(Color.accentColor)
-                        .frame(width: geo.size.width * max(0, min(1, viewModel.progress)))
+                        .frame(width: geo.size.width * max(0, min(1, viewModel.activeJob?.progress ?? 0)))
                 }
             }
-            .frame(width: 100, height: 6)
+            .frame(width: 90, height: 6)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(viewModel.progressPercent)
+                Text(headline)
                     .font(.caption)
                     .fontWeight(.medium)
-                    .monospacedDigit()
-
-                Text(viewModel.progressDescription)
+                Text(subline)
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
 
             if viewModel.hasErrors {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
-                    .help("\(viewModel.errors.count) error(s) during indexing")
+                Button {
+                    showErrors.toggle()
+                } label: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                }
+                .buttonStyle(.plain)
+                .help("\(viewModel.errors.count) photo(s) failed — click for details")
+                .popover(isPresented: $showErrors, arrowEdge: .bottom) {
+                    IndexingErrorsPopover(errors: viewModel.errors)
+                }
             }
 
             Button {
-                viewModel.cancelIndexing()
+                showQueue.toggle()
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
             }
             .buttonStyle(.plain)
-            .help("Cancel Indexing")
+            .help("Show indexing queue")
+            .popover(isPresented: $showQueue, arrowEdge: .bottom) {
+                IndexingQueuePopover(viewModel: viewModel)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -406,6 +402,160 @@ struct IndexingToolbarView: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
+    }
+
+    private var headline: String {
+        if let job = viewModel.activeJob {
+            return "Indexing \"\(job.name)\""
+        }
+        return "Indexing…"
+    }
+
+    private var subline: String {
+        if viewModel.totalFolders > 1 {
+            var text = "Folder \(viewModel.currentFolderNumber) of \(viewModel.totalFolders)"
+            if viewModel.waitingCount > 0 {
+                text += " · \(viewModel.waitingCount) waiting"
+            }
+            return text
+        }
+        if let job = viewModel.activeJob, job.total > 0 {
+            return "\(job.processed) of \(job.total) photos"
+        }
+        return "Scanning…"
+    }
+}
+
+/// Popover listing every folder in the indexing queue with its status.
+struct IndexingQueuePopover: View {
+    @ObservedObject var viewModel: IndexingViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Indexing Queue")
+                .font(.headline)
+                .padding(.bottom, 6)
+
+            ForEach(viewModel.jobs) { job in
+                IndexJobRow(job: job)
+            }
+
+            if viewModel.waitingCount > 0 {
+                Divider().padding(.vertical, 6)
+                Button("Cancel \(viewModel.waitingCount) waiting folder\(viewModel.waitingCount == 1 ? "" : "s")") {
+                    viewModel.cancelPending()
+                }
+                .buttonStyle(.link)
+            }
+        }
+        .padding(12)
+        .frame(width: 280)
+    }
+}
+
+/// One row in the indexing-queue popover.
+struct IndexJobRow: View {
+    let job: IndexJob
+
+    var body: some View {
+        HStack(spacing: 8) {
+            statusIcon
+                .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(job.name)
+                    .lineLimit(1)
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(detailColor)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 3)
+    }
+
+    /// A completed folder where some photos failed to index.
+    private var completedWithErrors: Bool {
+        job.status == .completed && !job.errors.isEmpty
+    }
+
+    @ViewBuilder
+    private var statusIcon: some View {
+        switch job.status {
+        case .waiting:
+            Image(systemName: "clock")
+                .foregroundColor(.secondary)
+        case .indexing:
+            ProgressView()
+                .controlSize(.small)
+        case .completed:
+            Image(systemName: completedWithErrors
+                ? "exclamationmark.triangle.fill"
+                : "checkmark.circle.fill")
+                .foregroundColor(completedWithErrors ? .orange : .green)
+        case .failed:
+            Image(systemName: "exclamationmark.circle.fill")
+                .foregroundColor(.red)
+        }
+    }
+
+    private var detailColor: Color {
+        completedWithErrors ? .orange : .secondary
+    }
+
+    private var detail: String {
+        switch job.status {
+        case .waiting:
+            return "Waiting"
+        case .indexing:
+            return job.total > 0
+                ? "\(job.processed) of \(job.total) · \(Int(job.progress * 100))%"
+                : "Scanning…"
+        case .completed:
+            if completedWithErrors {
+                return "\(job.succeeded) indexed · \(job.errors.count) failed"
+            }
+            return "\(job.succeeded) photo\(job.succeeded == 1 ? "" : "s") indexed"
+        case .failed:
+            return job.errors.first ?? "Failed"
+        }
+    }
+}
+
+/// Popover listing every photo that failed to index, with the reason.
+struct IndexingErrorsPopover: View {
+    let errors: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Indexing Errors")
+                .font(.headline)
+                .padding(.bottom, 6)
+
+            Text("\(errors.count) photo\(errors.count == 1 ? "" : "s") could not be indexed.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 8)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(errors.enumerated()), id: \.offset) { _, err in
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption)
+                            Text(err)
+                                .font(.caption)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: 240)
+        }
+        .padding(12)
+        .frame(width: 380)
     }
 }
 

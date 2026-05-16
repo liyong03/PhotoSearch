@@ -36,7 +36,11 @@ struct SidebarView: View {
                         .font(.caption)
                 } else {
                     ForEach(libraryViewModel.folders) { folder in
-                        FolderRow(folder: folder, libraryViewModel: libraryViewModel)
+                        FolderRow(
+                            folder: folder,
+                            libraryViewModel: libraryViewModel,
+                            indexingViewModel: indexingViewModel
+                        )
                             .contentShape(Rectangle())
                             .listRowBackground(
                                 selectedFolder?.id == folder.id
@@ -50,9 +54,7 @@ struct SidebarView: View {
                             }
                             .contextMenu {
                                 Button("Index Folder") {
-                                    Task {
-                                        await indexingViewModel.startIndexing(path: folder.path)
-                                    }
+                                    indexingViewModel.enqueue(path: folder.path)
                                 }
 
                                 Divider()
@@ -71,7 +73,7 @@ struct SidebarView: View {
                         Task {
                             await libraryViewModel.addFolder()
                             if let folder = libraryViewModel.folders.last {
-                                await indexingViewModel.startIndexing(path: folder.path)
+                                indexingViewModel.enqueue(path: folder.path)
                             }
                         }
                     } label: {
@@ -100,20 +102,63 @@ struct SidebarView: View {
 struct FolderRow: View {
     let folder: FolderInfo
     @ObservedObject var libraryViewModel: LibraryViewModel
+    @ObservedObject var indexingViewModel: IndexingViewModel
+
+    /// The indexing job for this folder in the current batch, if any.
+    private var job: IndexJob? {
+        indexingViewModel.jobs.first { $0.path == folder.path }
+    }
 
     var body: some View {
         HStack {
-            Image(systemName: folder.isIndexed ? "folder.fill" : "folder")
-                .foregroundColor(folder.isIndexed ? .blue : .secondary)
+            leadingIcon
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(folder.name)
                     .lineLimit(1)
 
-                Text("\(folder.photoCount) photos")
+                Text(subtitle)
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
+
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private var leadingIcon: some View {
+        switch job?.status {
+        case .indexing:
+            ProgressView()
+                .controlSize(.small)
+        case .waiting:
+            Image(systemName: "clock")
+                .foregroundColor(.secondary)
+        default:
+            Image(systemName: folder.isIndexed ? "folder.fill" : "folder")
+                .foregroundColor(folder.isIndexed ? .blue : .secondary)
+        }
+    }
+
+    private var subtitle: String {
+        switch job?.status {
+        case .waiting:
+            return "Waiting to index…"
+        case .indexing:
+            if let job, job.total > 0 {
+                return "Indexing… \(job.processed) of \(job.total)"
+            }
+            return "Indexing…"
+        case .completed:
+            if let job, !job.errors.isEmpty {
+                return "\(job.succeeded) indexed · \(job.errors.count) failed"
+            }
+            return "\(folder.photoCount) photos"
+        case .failed:
+            return "Indexing failed"
+        default:
+            return "\(folder.photoCount) photos"
         }
     }
 }
