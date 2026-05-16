@@ -3,33 +3,34 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00AAA42E10B9FB1A82F5EB28 /* RustAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D10B7520FC8832B826666F0 /* RustAPIClient.swift */; };
 		07ECB29686DCE8521584EE85 /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E459568FE4234F1CE4E5DCF /* ThumbnailCache.swift */; };
 		0D0196024D5B8FF22C75F400 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDE4018632AE2F2A73ED7652 /* ContentView.swift */; };
+		165CE82FC7C4ED4E37DB7496 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAD37379F8CBECC47734D3DD /* PhotoDetailView.swift */; };
 		24A8722191C5B26ED6733BDA /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1EE53847E32958B9EAFEE6A /* AppState.swift */; };
 		2C39C3BD09F567D0C4F38DAD /* SearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F375A2CA63217ED517AC145 /* SearchBar.swift */; };
+		334E5E7CFA168C3D7604956D /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00CD229F7ABE99252EEFD7A1 /* LibraryViewModel.swift */; };
 		37CD545C7E971D60BB94683B /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685FCE3B6E195A6A88B5DDF4 /* SidebarView.swift */; };
 		3E5989342349EFE87BEFE62D /* PhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462339EEC7D64F43FE9C99A2 /* PhotoGridView.swift */; };
 		4101B598CEF9BF835FBD8294 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F464B600AB945B756B9169E0 /* Assets.xcassets */; };
 		4F21AC0E5D6B0E114828CC0C /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA920C90867375C3C5BADE2C /* APIModels.swift */; };
 		58CF32720D58344D6E67F212 /* PhotoSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1A6A03DF70F253715B2CCC /* PhotoSearchTests.swift */; };
-
+		62003BE3C3E92889751C4F5E /* IndexingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CC3534FDAAC145C28CCD0CD /* IndexingViewModel.swift */; };
 		766B18CA929AC51167427214 /* PhotoThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 229A45CE46F4AC8C67D7266B /* PhotoThumbnailView.swift */; };
 		920709E6A6CED24487A1B718 /* Photo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5889BCECADA909485EE8312 /* Photo.swift */; };
+		9B7F880470FC0CEDBD6C1FE8 /* PhotoLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58AEA1A72CFF67B37C8EC512 /* PhotoLoader.swift */; };
+		9EA20612F006A3687D3F3D4A /* FilterPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 922D035105FF853C8CB4800C /* FilterPanel.swift */; };
 		AE13D182B3A4D27839409533 /* PhotoSearchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B499EBBDA970CF2D0F37F1 /* PhotoSearchApp.swift */; };
+		B876903C34C20997F519CDDB /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 56000B9B6D9CB3A57ECB0C37 /* Security.framework */; };
 		D3709EC21E9C9B4F09BBD5C7 /* SearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E13FF9D277ADA879B94DC6 /* SearchViewModel.swift */; };
-		F5BK1001A1B2C3D4E5F60001 /* BookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BK2001A1B2C3D4E5F60001 /* BookmarkManager.swift */; };
-		F5FP1004A1B2C3D4E5F60004 /* FilterPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FP2004A1B2C3D4E5F60004 /* FilterPanel.swift */; };
-		F5LV1003A1B2C3D4E5F60003 /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */; };
-		F5PL1002A1B2C3D4E5F60002 /* PhotoLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */; };
-		F6IV1005A1B2C3D4E5F60005 /* IndexingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */; };
-		F6PD1006A1B2C3D4E5F60006 /* PhotoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */; };
-
-		F8RC1001A1B2C3D4E5F70001 /* RustAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8RC2001A1B2C3D4E5F70001 /* RustAPIClient.swift */; };
-		F8RC1002A1B2C3D4E5F70002 /* RustCoreSwift in Frameworks */ = {isa = PBXBuildFile; productRef = F8RC3001A1B2C3D4E5F70001 /* RustCoreSwift */; };
+		DE4CA3DFE75FDDACBB0EDE27 /* QueryParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CBBCFB832ABD73804113FF0 /* QueryParser.swift */; };
+		E429BA6F409CB7E6DB124014 /* RustCoreSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 88C226CE743BA825B25CA9D7 /* RustCoreSwift */; };
+		EC871E6CE26B7EE991D88B7D /* BookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D431C3BF7742C5DED6CB929 /* BookmarkManager.swift */; };
+		F591EE6CBE7C235AD37F2B11 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B26833229DDED4147CC53D2 /* SystemConfiguration.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,33 +44,48 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		00CD229F7ABE99252EEFD7A1 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
 		00E13FF9D277ADA879B94DC6 /* SearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViewModel.swift; sourceTree = "<group>"; };
+		02570E44339C43BF0BD13AD1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		1D10B7520FC8832B826666F0 /* RustAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustAPIClient.swift; sourceTree = "<group>"; };
+		1F03F947A2975F66A20A6DE1 /* RustCoreSwift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RustCoreSwift; path = ../RustCore/RustCoreSwift; sourceTree = SOURCE_ROOT; };
 		229A45CE46F4AC8C67D7266B /* PhotoThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoThumbnailView.swift; sourceTree = "<group>"; };
+		2B26833229DDED4147CC53D2 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
+		2CBBCFB832ABD73804113FF0 /* QueryParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryParser.swift; sourceTree = "<group>"; };
 		2E459568FE4234F1CE4E5DCF /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
+		3D431C3BF7742C5DED6CB929 /* BookmarkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkManager.swift; sourceTree = "<group>"; };
 		3F375A2CA63217ED517AC145 /* SearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBar.swift; sourceTree = "<group>"; };
 		462339EEC7D64F43FE9C99A2 /* PhotoGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoGridView.swift; sourceTree = "<group>"; };
+		4CC3534FDAAC145C28CCD0CD /* IndexingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexingViewModel.swift; sourceTree = "<group>"; };
 		4F1A6A03DF70F253715B2CCC /* PhotoSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSearchTests.swift; sourceTree = "<group>"; };
+		56000B9B6D9CB3A57ECB0C37 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		58AEA1A72CFF67B37C8EC512 /* PhotoLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLoader.swift; sourceTree = "<group>"; };
 		685FCE3B6E195A6A88B5DDF4 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		90E44E1AEF032B81020140FB /* PhotoSearch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoSearch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		922D035105FF853C8CB4800C /* FilterPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterPanel.swift; sourceTree = "<group>"; };
 		99B499EBBDA970CF2D0F37F1 /* PhotoSearchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSearchApp.swift; sourceTree = "<group>"; };
-
 		B5889BCECADA909485EE8312 /* Photo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Photo.swift; sourceTree = "<group>"; };
 		BA920C90867375C3C5BADE2C /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		BDE4018632AE2F2A73ED7652 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		CCABAC6027FEF90FFA40A951 /* PhotoSearchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoSearchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D1EE53847E32958B9EAFEE6A /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		DAD37379F8CBECC47734D3DD /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
 		F18317A4EDEFEB2624E17718 /* PhotoSearch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PhotoSearch.entitlements; sourceTree = "<group>"; };
 		F464B600AB945B756B9169E0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		F5BK2001A1B2C3D4E5F60001 /* BookmarkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkManager.swift; sourceTree = "<group>"; };
-		F5FP2004A1B2C3D4E5F60004 /* FilterPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterPanel.swift; sourceTree = "<group>"; };
-		F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
-		F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLoader.swift; sourceTree = "<group>"; };
-		F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexingViewModel.swift; sourceTree = "<group>"; };
-		F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailView.swift; sourceTree = "<group>"; };
-		F7IP2007A1B2C3D4E5F60007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-
-		F8RC2001A1B2C3D4E5F70001 /* RustAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustAPIClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9C6EFFFDC37767FDAD2D1B48 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E429BA6F409CB7E6DB124014 /* RustCoreSwift in Frameworks */,
+				F591EE6CBE7C235AD37F2B11 /* SystemConfiguration.framework in Frameworks */,
+				B876903C34C20997F519CDDB /* Security.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		18D83CF59A64A83915BD8415 /* App */ = {
@@ -81,10 +97,18 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		26418A0FC28A0C15438734AA /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				1F03F947A2975F66A20A6DE1 /* RustCoreSwift */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
 		51773EEFD4A9FBFA92F5780B /* PhotoSearch */ = {
 			isa = PBXGroup;
 			children = (
-				F7IP2007A1B2C3D4E5F60007 /* Info.plist */,
+				02570E44339C43BF0BD13AD1 /* Info.plist */,
 				F18317A4EDEFEB2624E17718 /* PhotoSearch.entitlements */,
 				18D83CF59A64A83915BD8415 /* App */,
 				D429FBBD0ADC040B25BDF07B /* Models */,
@@ -116,8 +140,10 @@
 		5B4D396DB9F8574181C00926 = {
 			isa = PBXGroup;
 			children = (
+				26418A0FC28A0C15438734AA /* Packages */,
 				51773EEFD4A9FBFA92F5780B /* PhotoSearch */,
 				5A837339A38FBFE064A29D70 /* PhotoSearchTests */,
+				8E2167301A2760C3E70E0674 /* Frameworks */,
 				5856F4FC14E84AC8DA40821F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -130,12 +156,21 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		8E2167301A2760C3E70E0674 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				56000B9B6D9CB3A57ECB0C37 /* Security.framework */,
+				2B26833229DDED4147CC53D2 /* SystemConfiguration.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		A7521ACB54A8F07841590E40 /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				BDE4018632AE2F2A73ED7652 /* ContentView.swift */,
-				F5FP2004A1B2C3D4E5F60004 /* FilterPanel.swift */,
-				F6PD2006A1B2C3D4E5F60006 /* PhotoDetailView.swift */,
+				922D035105FF853C8CB4800C /* FilterPanel.swift */,
+				DAD37379F8CBECC47734D3DD /* PhotoDetailView.swift */,
 				462339EEC7D64F43FE9C99A2 /* PhotoGridView.swift */,
 				229A45CE46F4AC8C67D7266B /* PhotoThumbnailView.swift */,
 				3F375A2CA63217ED517AC145 /* SearchBar.swift */,
@@ -147,8 +182,8 @@
 		C8035B6330C367072CF6EC5F /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
-				F6IV2005A1B2C3D4E5F60005 /* IndexingViewModel.swift */,
-				F5LV2003A1B2C3D4E5F60003 /* LibraryViewModel.swift */,
+				4CC3534FDAAC145C28CCD0CD /* IndexingViewModel.swift */,
+				00CD229F7ABE99252EEFD7A1 /* LibraryViewModel.swift */,
 				00E13FF9D277ADA879B94DC6 /* SearchViewModel.swift */,
 			);
 			path = ViewModels;
@@ -166,9 +201,10 @@
 			isa = PBXGroup;
 			children = (
 				BA920C90867375C3C5BADE2C /* APIModels.swift */,
-				F5BK2001A1B2C3D4E5F60001 /* BookmarkManager.swift */,
-				F5PL2002A1B2C3D4E5F60002 /* PhotoLoader.swift */,
-				F8RC2001A1B2C3D4E5F70001 /* RustAPIClient.swift */,
+				3D431C3BF7742C5DED6CB929 /* BookmarkManager.swift */,
+				58AEA1A72CFF67B37C8EC512 /* PhotoLoader.swift */,
+				2CBBCFB832ABD73804113FF0 /* QueryParser.swift */,
+				1D10B7520FC8832B826666F0 /* RustAPIClient.swift */,
 				2E459568FE4234F1CE4E5DCF /* ThumbnailCache.swift */,
 			);
 			path = Services;
@@ -181,9 +217,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = B42A0FDFD1712781775B0FF8 /* Build configuration list for PBXNativeTarget "PhotoSearch" */;
 			buildPhases = (
+				6885A8AA94FF76E383FB6C71 /* Build Rust Core */,
 				7F473458428F00666E84B1DC /* Sources */,
-				F8RC4001A1B2C3D4E5F70001 /* Frameworks */,
 				3C88CDDA1DD1AD536E0DF43D /* Resources */,
+				9C6EFFFDC37767FDAD2D1B48 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -191,7 +228,7 @@
 			);
 			name = PhotoSearch;
 			packageProductDependencies = (
-				F8RC3001A1B2C3D4E5F70001 /* RustCoreSwift */,
+				88C226CE743BA825B25CA9D7 /* RustCoreSwift */,
 			);
 			productName = PhotoSearch;
 			productReference = 90E44E1AEF032B81020140FB /* PhotoSearch.app */;
@@ -241,8 +278,9 @@
 			mainGroup = 5B4D396DB9F8574181C00926;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				F8RC5001A1B2C3D4E5F70001 /* XCLocalSwiftPackageReference "RustCoreSwift" */,
+				F2BDC6011878F002F86231A6 /* XCLocalSwiftPackageReference "../RustCore/RustCoreSwift" */,
 			);
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -263,16 +301,27 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXFrameworksBuildPhase section */
-		F8RC4001A1B2C3D4E5F70001 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
+/* Begin PBXShellScriptBuildPhase section */
+		6885A8AA94FF76E383FB6C71 /* Build Rust Core */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
-				F8RC1002A1B2C3D4E5F70002 /* RustCoreSwift in Frameworks */,
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Core";
+			outputFileListPaths = (
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/../scripts/build_rust.sh\"\n";
 		};
-/* End PBXFrameworksBuildPhase section */
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		7F473458428F00666E84B1DC /* Sources */ = {
@@ -281,19 +330,20 @@
 			files = (
 				4F21AC0E5D6B0E114828CC0C /* APIModels.swift in Sources */,
 				24A8722191C5B26ED6733BDA /* AppState.swift in Sources */,
-				F5BK1001A1B2C3D4E5F60001 /* BookmarkManager.swift in Sources */,
+				EC871E6CE26B7EE991D88B7D /* BookmarkManager.swift in Sources */,
 				0D0196024D5B8FF22C75F400 /* ContentView.swift in Sources */,
-				F5FP1004A1B2C3D4E5F60004 /* FilterPanel.swift in Sources */,
-				F6IV1005A1B2C3D4E5F60005 /* IndexingViewModel.swift in Sources */,
-				F5LV1003A1B2C3D4E5F60003 /* LibraryViewModel.swift in Sources */,
+				9EA20612F006A3687D3F3D4A /* FilterPanel.swift in Sources */,
+				62003BE3C3E92889751C4F5E /* IndexingViewModel.swift in Sources */,
+				334E5E7CFA168C3D7604956D /* LibraryViewModel.swift in Sources */,
 				920709E6A6CED24487A1B718 /* Photo.swift in Sources */,
-				F6PD1006A1B2C3D4E5F60006 /* PhotoDetailView.swift in Sources */,
+				165CE82FC7C4ED4E37DB7496 /* PhotoDetailView.swift in Sources */,
 				3E5989342349EFE87BEFE62D /* PhotoGridView.swift in Sources */,
-				F5PL1002A1B2C3D4E5F60002 /* PhotoLoader.swift in Sources */,
+				9B7F880470FC0CEDBD6C1FE8 /* PhotoLoader.swift in Sources */,
 				AE13D182B3A4D27839409533 /* PhotoSearchApp.swift in Sources */,
 				766B18CA929AC51167427214 /* PhotoThumbnailView.swift in Sources */,
+				DE4CA3DFE75FDDACBB0EDE27 /* QueryParser.swift in Sources */,
+				00AAA42E10B9FB1A82F5EB28 /* RustAPIClient.swift in Sources */,
 				2C39C3BD09F567D0C4F38DAD /* SearchBar.swift in Sources */,
-				F8RC1001A1B2C3D4E5F70001 /* RustAPIClient.swift in Sources */,
 				D3709EC21E9C9B4F09BBD5C7 /* SearchViewModel.swift in Sources */,
 				37CD545C7E971D60BB94683B /* SidebarView.swift in Sources */,
 				07ECB29686DCE8521584EE85 /* ThumbnailCache.swift in Sources */,
@@ -459,24 +509,20 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = PhotoSearch/PhotoSearch.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PhotoSearch/Info.plist;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				INFOPLIST_GENERATION_MODE = GeneratedFile;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				OTHER_LDFLAGS = (
-					"-framework",
-					SystemConfiguration,
-				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.photosearch.app;
 				PRODUCT_NAME = PhotoSearch;
 				SDKROOT = macosx;
@@ -505,24 +551,20 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = PhotoSearch/PhotoSearch.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PhotoSearch/Info.plist;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				INFOPLIST_GENERATION_MODE = GeneratedFile;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				OTHER_LDFLAGS = (
-					"-framework",
-					SystemConfiguration,
-				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.photosearch.app;
 				PRODUCT_NAME = PhotoSearch;
 				SDKROOT = macosx;
@@ -563,14 +605,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		F8RC5001A1B2C3D4E5F70001 /* XCLocalSwiftPackageReference "RustCoreSwift" */ = {
+		F2BDC6011878F002F86231A6 /* XCLocalSwiftPackageReference "../RustCore/RustCoreSwift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../RustCore/RustCoreSwift;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		F8RC3001A1B2C3D4E5F70001 /* RustCoreSwift */ = {
+		88C226CE743BA825B25CA9D7 /* RustCoreSwift */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = RustCoreSwift;
 		};

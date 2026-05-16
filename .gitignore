@@ -79,3 +79,13 @@ Backend/models/
 
 # Built app
 PhotoSearch.app/
+
+# Rust
+RustCore/target/
+RustCore/generated/
+RustCore/RustCoreSwift/.swiftpm/
+RustCore/RustCoreSwift/rust_coreFFI.xcframework/macos-arm64_x86_64/librust_core.a
+
+# Test image data — large, downloadable, not source-controlled
+tests/data/coco_sample/
+tests/data/*.zip

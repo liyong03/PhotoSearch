@@ -8,6 +8,12 @@ pub mod services;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
+/// Hybrid scoring weight on the image-CLIP score; the rest goes to caption text-CLIP.
+/// 0.6 keeps image-vision dominant but lets the caption channel veto unrelated photos
+/// whose image embedding happens to score highly.
+const IMAGE_WEIGHT: f32 = 0.6;
+const CAPTION_WEIGHT: f32 = 1.0 - IMAGE_WEIGHT;
+
 /// The main entry point for the PhotoSearch Rust core.
 /// Wraps all subsystems (CLIP, BLIP, vector search, database, services)
 /// and exposes a high-level API to Swift via UniFFI.
@@ -107,13 +113,22 @@ impl PhotoSearchEngine {
 
         let geocoder = services::geocoding::GeocodingService::new();
 
-        Ok(Arc::new(Self {
+        let engine = Arc::new(Self {
             clip,
             blip: Mutex::new(blip),
             db,
             index,
             geocoder,
-        }))
+        });
+
+        // One-time backfill: photos indexed before hybrid scoring (v1 index, or
+        // v2 entries without caption embeddings) get their captions encoded now.
+        // Cost is bounded by existing index size and only runs once per photo.
+        if let Err(e) = engine.backfill_caption_embeddings() {
+            log::warn!("Caption backfill failed (non-fatal): {:?}", e);
+        }
+
+        Ok(engine)
     }
 
     /// Encode a text query into a CLIP embedding.
@@ -172,8 +187,11 @@ impl PhotoSearchEngine {
                 message: e.to_string(),
             })?;
 
-        // 5. Build candidate set from DB, applying all filters
-        let mut results = Vec::new();
+        // 5. Build candidate set from DB, applying all filters.
+        // `keyword_filter` is repurposed: true (default) = hybrid CLIP image+caption rerank,
+        // false = pure image CLIP (legacy "off" — useful for A/B comparison).
+        let use_hybrid = request.keyword_filter.unwrap_or(true);
+        let mut results: Vec<SearchResult> = Vec::new();
         let min_score = request.min_score.unwrap_or(0.0);
 
         // Pre-compute time filter IDs if needed
@@ -206,12 +224,7 @@ impl PhotoSearchEngine {
                 .map(|ids| ids.into_iter().collect())
         });
 
-        for (photo_id, score) in candidates {
-            // Score threshold
-            if score < min_score {
-                continue;
-            }
-
+        for (photo_id, image_score) in candidates {
             // Time filter
             if let Some(ref filter) = time_filter {
                 if !filter.contains(&photo_id) {
@@ -233,37 +246,40 @@ impl PhotoSearchEngine {
                 }
             }
 
-            // Look up photo in DB
-            if let Ok(Some(photo)) = self.db.get_photo(&photo_id) {
-                // Lexical filter (matches Python logic): only include photos where
-                // the caption or tags contain the query terms (or their synonyms).
-                // This is the precision gate — CLIP provides ranking, synonyms provide filtering.
-                // Can be disabled via keyword_filter=false for pure semantic search.
-                if request.keyword_filter.unwrap_or(true)
-                    && !services::synonyms::check_match(
-                        &semantic_query,
-                        photo.description.as_deref(),
-                        photo.tags.as_deref(),
-                    )
-                {
-                    continue;
+            // Hybrid score: combine image-CLIP with caption text-CLIP if available.
+            // Pure-image mode (keyword_filter=false) skips the caption channel.
+            let final_score = if use_hybrid {
+                if let Some(caption_emb) = self.index.get_caption(&photo_id) {
+                    let caption_score = search::cosine_similarity(&query_embedding, &caption_emb);
+                    IMAGE_WEIGHT * image_score + CAPTION_WEIGHT * caption_score
+                } else {
+                    // No caption embedding (e.g. photo had no description) — fall back
+                    // to the image score so it doesn't get unfairly demoted.
+                    image_score
                 }
+            } else {
+                image_score
+            };
 
+            if final_score < min_score {
+                continue;
+            }
+
+            if let Ok(Some(photo)) = self.db.get_photo(&photo_id) {
                 results.push(SearchResult {
                     photo_id: photo.id,
-                    score,
+                    score: final_score,
                     path: photo.path,
                     description: photo.description,
                     timestamp: photo.timestamp,
                 });
-
-                if results.len() >= request.top_k as usize {
-                    break;
-                }
             }
         }
 
-        // Results are already sorted by CLIP score (from vector search)
+        // Re-sort by combined score (image-only candidate order may not match hybrid order).
+        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(request.top_k as usize);
+
         Ok(results)
     }
 
@@ -455,11 +471,64 @@ impl PhotoSearchEngine {
                 message: e.to_string(),
             })?;
 
+        // Encode the caption (BLIP description) into a CLIP text embedding so the
+        // hybrid scorer can compare query↔caption alongside query↔image.
+        if let Some(ref desc) = photo.description {
+            if !desc.trim().is_empty() {
+                match self.clip.encode_text(desc) {
+                    Ok(cap_emb) => {
+                        if let Err(e) = self.index.add_caption(&photo_id, &cap_emb) {
+                            log::warn!("Failed to store caption embedding for {}: {}", photo_id, e);
+                        }
+                    }
+                    Err(e) => log::warn!("CLIP text encode failed for caption of {}: {}", photo_id, e),
+                }
+            }
+        }
+
         Ok(IndexResult {
             photo_id,
             success: true,
             error: None,
         })
+    }
+
+    /// Backfill caption embeddings for any indexed photo that has a description in
+    /// the DB but no caption embedding in the vector index. Safe to call at startup;
+    /// no-op once the index is fully migrated.
+    pub fn backfill_caption_embeddings(&self) -> Result<u32, PhotoSearchError> {
+        let mut migrated = 0u32;
+        for photo_id in self.index.all_photo_ids() {
+            if self.index.has_caption(&photo_id) {
+                continue;
+            }
+            let Ok(Some(photo)) = self.db.get_photo(&photo_id) else {
+                continue;
+            };
+            let Some(desc) = photo.description.as_deref() else {
+                continue;
+            };
+            if desc.trim().is_empty() {
+                continue;
+            }
+            match self.clip.encode_text(desc) {
+                Ok(cap_emb) => {
+                    if let Err(e) = self.index.add_caption(&photo_id, &cap_emb) {
+                        log::warn!("Backfill: failed to store caption embedding for {}: {}", photo_id, e);
+                        continue;
+                    }
+                    migrated += 1;
+                    if migrated % 50 == 0 {
+                        log::info!("Backfill progress: {} caption embeddings", migrated);
+                    }
+                }
+                Err(e) => log::warn!("Backfill: CLIP text encode failed for {}: {}", photo_id, e),
+            }
+        }
+        if migrated > 0 {
+            log::info!("Backfill complete: encoded {} caption embeddings", migrated);
+        }
+        Ok(migrated)
     }
 
     /// Delete a photo from the index and database.

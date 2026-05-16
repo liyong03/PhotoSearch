@@ -75,11 +75,17 @@ class SearchViewModel: ObservableObject {
                 timeRange = TimeRange(start: start, end: end)
             }
 
+            // Use Apple's NLTagger to extract any place name from the query
+            // before sending it to Rust. An explicit `locationFilter` set via
+            // the UI takes priority over an extracted one.
+            let parsed = QueryParser.parse(query)
+            let resolvedLocation = locationFilter ?? parsed.location
+
             let request = SearchRequest(
-                query: query,
+                query: parsed.semantic,
                 topK: 50,
                 timeRange: timeRange,
-                location: locationFilter,
+                location: resolvedLocation,
                 keywordFilter: keywordFilter
             )
 

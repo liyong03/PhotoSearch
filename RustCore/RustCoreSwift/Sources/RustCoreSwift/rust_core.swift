@@ -537,6 +537,13 @@ fileprivate struct FfiConverterString: FfiConverter {
 public protocol PhotoSearchEngineProtocol: AnyObject, Sendable {
     
     /**
+     * Backfill caption embeddings for any indexed photo that has a description in
+     * the DB but no caption embedding in the vector index. Safe to call at startup;
+     * no-op once the index is fully migrated.
+     */
+    func backfillCaptionEmbeddings() throws  -> UInt32
+    
+    /**
      * Browse mode: return all photos with optional time/folder filtering, no query needed.
      */
     func browseAll(request: SearchRequest) throws  -> [SearchResult]
@@ -677,6 +684,18 @@ public convenience init(dataDir: String)throws  {
 
     
 
+    
+    /**
+     * Backfill caption embeddings for any indexed photo that has a description in
+     * the DB but no caption embedding in the vector index. Safe to call at startup;
+     * no-op once the index is fully migrated.
+     */
+open func backfillCaptionEmbeddings()throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePhotoSearchError_lift) {
+    uniffi_rust_core_fn_method_photosearchengine_backfill_caption_embeddings(self.uniffiClonePointer(),$0
+    )
+})
+}
     
     /**
      * Browse mode: return all photos with optional time/folder filtering, no query needed.
@@ -1571,6 +1590,9 @@ private let initializationResult: InitializationResult = {
     let scaffolding_contract_version = ffi_rust_core_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
+    }
+    if (uniffi_rust_core_checksum_method_photosearchengine_backfill_caption_embeddings() != 17995) {
+        return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_rust_core_checksum_method_photosearchengine_browse_all() != 62585) {
         return InitializationResult.apiChecksumMismatch

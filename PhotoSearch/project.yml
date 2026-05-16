@@ -11,6 +11,10 @@ settings:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
 
+packages:
+  RustCoreSwift:
+    path: ../RustCore/RustCoreSwift
+
 targets:
   PhotoSearch:
     type: application
@@ -19,6 +23,22 @@ targets:
       - path: PhotoSearch
         excludes:
           - "**/.DS_Store"
+    dependencies:
+      - package: RustCoreSwift
+        product: RustCoreSwift
+      # System frameworks the Rust static lib depends on (reqwest/hyper-util
+      # use SystemConfiguration for macOS proxy detection; Security for TLS).
+      - sdk: SystemConfiguration.framework
+      - sdk: Security.framework
+    preBuildScripts:
+      - name: Build Rust Core
+        # Rebuild the Rust library + regenerate the Swift package on every build.
+        # Cargo's incremental compilation makes the no-change case ~instant.
+        # `basedOnDependencyAnalysis: false` ensures the script always runs
+        # (Xcode would otherwise skip it because we don't declare file deps).
+        script: |
+          "$SRCROOT/../scripts/build_rust.sh"
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.photosearch.app
