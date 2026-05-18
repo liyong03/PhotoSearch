@@ -71,8 +71,7 @@ actor RustAPIClient: APIClientProtocol {
             timeStart: request.timeRange.map { Int64($0.start.timeIntervalSince1970) },
             timeEnd: request.timeRange.map { Int64($0.end.timeIntervalSince1970) },
             location: request.location,
-            folderPath: request.folderPath,
-            minScore: Float(request.minScore)
+            folderPath: request.folderPath
         )
 
         let rustResults = try engine.search(request: rustRequest)

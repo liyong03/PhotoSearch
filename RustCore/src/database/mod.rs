@@ -206,6 +206,19 @@ impl Database {
         Ok(ids)
     }
 
+    /// IDs of photos that have GPS coordinates.
+    /// Used by the soft location filter: a photo with no GPS cannot be proven
+    /// to be outside a location, so it is not excluded.
+    pub fn photos_with_gps(&self) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id FROM photos WHERE latitude IS NOT NULL AND longitude IS NOT NULL"
+        )?;
+        let ids = stmt.query_map([], |row| row.get(0))?
+            .collect::<std::result::Result<Vec<String>, _>>()?;
+        Ok(ids)
+    }
+
     pub fn full_text_search(&self, query: &str) -> Result<Vec<String>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(

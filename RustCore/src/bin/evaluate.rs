@@ -53,7 +53,6 @@ fn search(
             time_end: None,
             location: None,
             folder_path: None,
-            min_score: None,
         })
         .unwrap_or_default()
 }

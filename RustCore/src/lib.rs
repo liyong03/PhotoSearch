@@ -8,6 +8,12 @@ pub mod services;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
+/// Relevance cutoff for plain semantic searches. SigLIP cosine scores have no
+/// absolute meaning, but a result far below the top score is noise. Results
+/// scoring below `top_score * RELEVANCE_RATIO` are dropped. Skipped when a
+/// structured (time/folder/location) filter already defines the result set.
+const RELEVANCE_RATIO: f32 = 0.35;
+
 /// The main entry point for the PhotoSearch Rust core.
 /// Wraps all subsystems (CLIP, BLIP, vector search, database, services)
 /// and exposes a high-level API to Swift via UniFFI.
@@ -37,7 +43,6 @@ pub struct SearchRequest {
     pub time_end: Option<i64>,
     pub location: Option<String>,
     pub folder_path: Option<String>,
-    pub min_score: Option<f32>,
 }
 
 #[derive(uniffi::Record)]
@@ -204,18 +209,20 @@ impl PhotoSearchEngine {
             return self.browse_all(&request);
         }
 
-        // 1. Parse query for embedded location
-        let (semantic_query, parsed_location) =
+        // 1. Recover a location from the query text only if the caller did
+        //    not supply one. The query itself is NOT stripped — keeping the
+        //    place name lets SigLIP visually match photos that have no GPS.
+        let (_, parsed_location) =
             services::query_parser::parse_query(&request.query);
-        let location = request.location.or(parsed_location);
+        let location = request.location.clone().or(parsed_location);
 
         // 2. Resolve location to bounding box via geocoding
         let location_bbox = location
             .as_deref()
             .and_then(|loc| self.geocoder.geocode(loc));
 
-        // 3. Encode text query with SigLIP
-        let query_embedding = self.clip.encode_text(&semantic_query)?;
+        // 3. Encode the full query text with SigLIP
+        let query_embedding = self.clip.encode_text(&request.query)?;
 
         // 4. Vector search with oversampling (10x candidates for post-filtering)
         let oversample = (request.top_k as usize) * 10;
@@ -228,8 +235,14 @@ impl PhotoSearchEngine {
 
         // 5. Build candidate set from DB, applying all filters. Photos are
         // ranked purely by SigLIP image-embedding similarity.
-        let mut results: Vec<SearchResult> = Vec::new();
-        let min_score = request.min_score.unwrap_or(0.0);
+        //
+        // A structured filter (time / folder / location) defines the result
+        // set on its own; the relevance cutoff below is skipped when one is
+        // active, otherwise a generic query would wrongly drop filtered photos.
+        let has_structured_filter = request.time_start.is_some()
+            || request.time_end.is_some()
+            || request.folder_path.is_some()
+            || location_bbox.is_some();
 
         // Pre-compute time filter IDs if needed
         let time_filter: Option<HashSet<String>> =
@@ -253,54 +266,95 @@ impl PhotoSearchEngine {
                     .map(|ids| ids.into_iter().collect())
             });
 
-        // Pre-compute location bounding box filter IDs if needed
-        let location_filter: Option<HashSet<String>> = location_bbox.as_ref().and_then(|bbox| {
+        // Soft location filter: a geotagged photo outside the bounding box is
+        // excluded, but a photo with no GPS is kept (its location is unknown,
+        // so it cannot be proven to be elsewhere). `in_bbox` is the set inside
+        // the box; `geotagged` is every photo that has GPS at all.
+        let in_bbox: Option<HashSet<String>> = location_bbox.as_ref().and_then(|bbox| {
             self.db
                 .filter_by_location(bbox.min_lat, bbox.max_lat, bbox.min_lon, bbox.max_lon)
                 .ok()
                 .map(|ids| ids.into_iter().collect())
         });
+        let geotagged: Option<HashSet<String>> = if in_bbox.is_some() {
+            self.db
+                .photos_with_gps()
+                .ok()
+                .map(|ids| ids.into_iter().collect())
+        } else {
+            None
+        };
+
+        // (result, location_confirmed): photos whose GPS proves they are
+        // inside the requested location are ranked above the rest.
+        let mut scored: Vec<(SearchResult, bool)> = Vec::new();
 
         for (photo_id, image_score) in candidates {
-            // Time filter
+            // Time filter (hard)
             if let Some(ref filter) = time_filter {
                 if !filter.contains(&photo_id) {
                     continue;
                 }
             }
 
-            // Folder filter
+            // Folder filter (hard)
             if let Some(ref filter) = folder_filter {
                 if !filter.contains(&photo_id) {
                     continue;
                 }
             }
 
-            // Location filter
-            if let Some(ref filter) = location_filter {
-                if !filter.contains(&photo_id) {
-                    continue;
+            // Soft location filter: drop only geotagged photos that fall
+            // outside the box; photos with no GPS pass through. A photo
+            // whose GPS is inside the box is a confirmed location match.
+            let location_confirmed = match (&in_bbox, &geotagged) {
+                (Some(in_bbox), Some(geotagged)) => {
+                    if geotagged.contains(&photo_id) && !in_bbox.contains(&photo_id) {
+                        continue;
+                    }
+                    in_bbox.contains(&photo_id)
                 }
-            }
-
-            if image_score < min_score {
-                continue;
-            }
+                _ => false,
+            };
 
             if let Ok(Some(photo)) = self.db.get_photo(&photo_id) {
-                results.push(SearchResult {
-                    photo_id: photo.id,
-                    score: image_score,
-                    path: photo.path,
-                    description: photo.description,
-                    timestamp: photo.timestamp,
-                });
-            }
-
-            if results.len() >= request.top_k as usize {
-                break;
+                scored.push((
+                    SearchResult {
+                        photo_id: photo.id,
+                        score: image_score,
+                        path: photo.path,
+                        description: photo.description,
+                        timestamp: photo.timestamp,
+                    },
+                    location_confirmed,
+                ));
             }
         }
+
+        // GPS-confirmed location matches first, then by SigLIP score.
+        scored.sort_by(|a, b| {
+            b.1.cmp(&a.1)
+                .then(b.0.score.partial_cmp(&a.0.score).unwrap_or(std::cmp::Ordering::Equal))
+        });
+
+        // Relevance cutoff for plain semantic searches: drop results that fall
+        // far below the top score (noise). The absolute score is meaningless;
+        // the ratio to the best score is the signal.
+        if !has_structured_filter {
+            if let Some((top, _)) = scored.first() {
+                let top_score = top.score;
+                if top_score > 0.0 {
+                    let cutoff = top_score * RELEVANCE_RATIO;
+                    scored.retain(|(r, _)| r.score >= cutoff);
+                }
+            }
+        }
+
+        let results: Vec<SearchResult> = scored
+            .into_iter()
+            .take(request.top_k as usize)
+            .map(|(r, _)| r)
+            .collect();
 
         Ok(results)
     }

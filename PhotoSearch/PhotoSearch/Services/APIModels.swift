@@ -46,25 +46,19 @@ struct SearchRequest: Codable, Equatable {
     let timeRange: TimeRange?
     let location: String?
     let folderPath: String?
-    let minScore: Double
 
     init(
         query: String = "",
         topK: Int = 20,
         timeRange: TimeRange? = nil,
         location: String? = nil,
-        // SigLIP cosine similarities for matching pairs sit in ~0.05-0.11
-        // (much lower scale than CLIP's ~0.25+). 0.03 floors out genuine
-        // noise without cutting valid matches.
-        folderPath: String? = nil,
-        minScore: Double = 0.03
+        folderPath: String? = nil
     ) {
         self.query = query
         self.topK = topK
         self.timeRange = timeRange
         self.location = location
         self.folderPath = folderPath
-        self.minScore = minScore
     }
 
     enum CodingKeys: String, CodingKey {
@@ -73,7 +67,6 @@ struct SearchRequest: Codable, Equatable {
         case timeRange = "time_range"
         case location
         case folderPath = "folder_path"
-        case minScore = "min_score"
     }
 }
 

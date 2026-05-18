@@ -1075,18 +1075,16 @@ public struct SearchRequest {
     public var timeEnd: Int64?
     public var location: String?
     public var folderPath: String?
-    public var minScore: Float?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(query: String, topK: UInt32, timeStart: Int64?, timeEnd: Int64?, location: String?, folderPath: String?, minScore: Float?) {
+    public init(query: String, topK: UInt32, timeStart: Int64?, timeEnd: Int64?, location: String?, folderPath: String?) {
         self.query = query
         self.topK = topK
         self.timeStart = timeStart
         self.timeEnd = timeEnd
         self.location = location
         self.folderPath = folderPath
-        self.minScore = minScore
     }
 }
 
@@ -1115,9 +1113,6 @@ extension SearchRequest: Equatable, Hashable {
         if lhs.folderPath != rhs.folderPath {
             return false
         }
-        if lhs.minScore != rhs.minScore {
-            return false
-        }
         return true
     }
 
@@ -1128,7 +1123,6 @@ extension SearchRequest: Equatable, Hashable {
         hasher.combine(timeEnd)
         hasher.combine(location)
         hasher.combine(folderPath)
-        hasher.combine(minScore)
     }
 }
 
@@ -1146,8 +1140,7 @@ public struct FfiConverterTypeSearchRequest: FfiConverterRustBuffer {
                 timeStart: FfiConverterOptionInt64.read(from: &buf), 
                 timeEnd: FfiConverterOptionInt64.read(from: &buf), 
                 location: FfiConverterOptionString.read(from: &buf), 
-                folderPath: FfiConverterOptionString.read(from: &buf), 
-                minScore: FfiConverterOptionFloat.read(from: &buf)
+                folderPath: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -1158,7 +1151,6 @@ public struct FfiConverterTypeSearchRequest: FfiConverterRustBuffer {
         FfiConverterOptionInt64.write(value.timeEnd, into: &buf)
         FfiConverterOptionString.write(value.location, into: &buf)
         FfiConverterOptionString.write(value.folderPath, into: &buf)
-        FfiConverterOptionFloat.write(value.minScore, into: &buf)
     }
 }
 
@@ -1396,30 +1388,6 @@ fileprivate struct FfiConverterOptionInt64: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterInt64.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-fileprivate struct FfiConverterOptionFloat: FfiConverterRustBuffer {
-    typealias SwiftType = Float?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterFloat.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterFloat.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
